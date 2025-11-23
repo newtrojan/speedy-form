@@ -1,0 +1,19 @@
+meta {
+  name: Get Pricing Config
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/pricing/config/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the current pricing configuration including:
+  - Labor rates
+  - Fees
+  - Markup multiplier
+  - Mobile service tiers
+}

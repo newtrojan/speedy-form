@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from drf_spectacular.utils import extend_schema
 from celery.result import AsyncResult
-import uuid
 
 from quotes.models import Quote
 from quotes.tasks import generate_quote_task
@@ -35,7 +34,7 @@ class GenerateQuoteView(APIView):
 
         # Generate a unique task ID (or let Celery do it, but we might want to track it)
         # Actually, let's just use Celery's task ID.
-        
+
         # Dispatch task
         task = generate_quote_task.delay(serializer.validated_data)
 
@@ -141,7 +140,8 @@ class ApproveQuoteView(APIView):
         # We need to hash the incoming token and compare with stored hash
         # We can use EmailService helper or just do it here.
         # Since EmailService has the logic, let's use it or replicate it.
-        # Replicating is safer to avoid instantiating a service just for a static method.
+        # Replicating is safer to avoid instantiating a service just
+        # for a static method.
         import hashlib
         from django.utils.crypto import constant_time_compare
 
@@ -159,23 +159,27 @@ class ApproveQuoteView(APIView):
 
         # Transition state
         # Using FSM transition method
-        if quote.state not in ["sent", "pending_validation"]: # Allow pending for now if email sent early
-             return Response(
+        if quote.state not in [
+            "sent",
+            "pending_validation",
+        ]:  # Allow pending for now if email sent early
+            return Response(
                 {"error": "Quote cannot be approved in its current state."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             quote.customer_approve()
             quote.save()
         except Exception as e:
-             return Response(
+            return Response(
                 {"error": f"Failed to approve quote: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Trigger confirmation email
         from core.services.email_service import EmailService
+
         email_service = EmailService()
         email_service.send_approval_confirmation(quote)
 

@@ -1,0 +1,22 @@
+meta {
+  name: Check In-Store Service
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/v1/shops/check-in-store/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "postal_code": "94105"
+  }
+}
+
+docs {
+  Check if in-store service is available for a postal code.
+  Returns nearest shop if serviceable.
+}

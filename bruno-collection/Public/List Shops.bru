@@ -1,0 +1,18 @@
+meta {
+  name: List Shops
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/shops/
+  body: none
+  auth: none
+}
+
+docs {
+  Returns list of all shops with:
+  - Name and location
+  - Mobile service availability
+  - Service radius
+}

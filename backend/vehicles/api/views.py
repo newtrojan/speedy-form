@@ -49,7 +49,8 @@ class IdentifyVehicleView(APIView):
                 )
 
             # Transform data to match serializer structure if needed
-            # The service returns a dict that roughly matches, but let's ensure structure
+            # The service returns a dict that roughly matches,
+            # but let's ensure structure
             response_data = {
                 "vehicle": {
                     "vin": data.get("vin"),

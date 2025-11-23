@@ -1,0 +1,23 @@
+meta {
+  name: Quote Detail
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/api/v1/support/quotes/{{quote_id}}/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  Get full quote details including:
+  - Vehicle and customer info
+  - Line items breakdown
+  - State history
+  - Permissions (can_validate, can_reject, can_modify)
+}

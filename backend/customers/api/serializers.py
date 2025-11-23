@@ -5,8 +5,8 @@ from customers.models import Customer
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'email', 'phone', 'first_name', 'last_name', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ["id", "email", "phone", "first_name", "last_name", "created_at"]
+        read_only_fields = ["id", "created_at"]
 
 
 class CustomerCreateSerializer(serializers.ModelSerializer):
@@ -18,8 +18,14 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'email', 'phone', 'first_name', 'last_name',
-            'street_address', 'city', 'state', 'postal_code'
+            "email",
+            "phone",
+            "first_name",
+            "last_name",
+            "street_address",
+            "city",
+            "state",
+            "postal_code",
         ]
 
     def validate(self, data):

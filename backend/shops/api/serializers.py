@@ -8,7 +8,7 @@ class ShopSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Shop
-        fields = ['id', 'name', 'address', 'phone', 'email', 'directions_url']
+        fields = ["id", "name", "address", "phone", "email", "directions_url"]
         read_only_fields = fields
 
     def get_address(self, obj):
@@ -29,7 +29,7 @@ class ServiceabilityRequestSerializer(serializers.Serializer):
 
 class ServiceabilityResponseSerializer(serializers.Serializer):
     is_serviceable = serializers.BooleanField()
-    service_type = serializers.ChoiceField(choices=['in_store', 'mobile'])
+    service_type = serializers.ChoiceField(choices=["in_store", "mobile"])
     shop = ShopSerializer(required=False, allow_null=True)
     nearby_shops = ShopSerializer(many=True, required=False)
     distance_miles = serializers.FloatField(required=False)

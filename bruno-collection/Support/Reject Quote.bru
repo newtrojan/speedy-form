@@ -1,0 +1,21 @@
+meta {
+  name: Reject Quote
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{base_url}}/api/v1/support/quotes/{{quote_id}}/reject/
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "reason": "Vehicle not eligible for mobile service"
+  }
+}

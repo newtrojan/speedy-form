@@ -1,0 +1,21 @@
+meta {
+  name: Validate Quote
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/v1/support/quotes/{{quote_id}}/validate/
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "notes": "Validated via Bruno"
+  }
+}

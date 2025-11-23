@@ -27,34 +27,38 @@ class QuoteCustomerSerializer(serializers.Serializer):
 class QuoteGenerationRequestSerializer(serializers.Serializer):
     vin = serializers.CharField(max_length=17)
     glass_type = serializers.CharField()
-    manufacturer = serializers.CharField(default='nags')
-    service_type = serializers.ChoiceField(choices=['mobile', 'in_store'])
-    payment_type = serializers.ChoiceField(choices=['cash', 'insurance'])
+    manufacturer = serializers.CharField(default="nags")
+    service_type = serializers.ChoiceField(choices=["mobile", "in_store"])
+    payment_type = serializers.ChoiceField(choices=["cash", "insurance"])
 
     location = QuoteLocationSerializer()
     insurance = QuoteInsuranceSerializer(required=False, allow_null=True)
     customer = QuoteCustomerSerializer()
 
     def validate(self, data):
-        service_type = data.get('service_type')
-        location = data.get('location', {})
-        payment_type = data.get('payment_type')
-        insurance = data.get('insurance')
+        service_type = data.get("service_type")
+        location = data.get("location", {})
+        payment_type = data.get("payment_type")
+        insurance = data.get("insurance")
 
-        if service_type == 'mobile':
+        if service_type == "mobile":
             if (
-                not location.get('street_address') or
-                not location.get('city') or
-                not location.get('state')
+                not location.get("street_address")
+                or not location.get("city")
+                or not location.get("state")
             ):
-                raise serializers.ValidationError({
-                    "location": "Full address is required for mobile service."
-                })
+                raise serializers.ValidationError(
+                    {"location": "Full address is required for mobile service."}
+                )
 
-        if payment_type == 'insurance' and not insurance:
-            raise serializers.ValidationError({
-                "insurance": "Insurance details are required for insurance payment type."
-            })
+        if payment_type == "insurance" and not insurance:
+            raise serializers.ValidationError(
+                {
+                    "insurance": (
+                        "Insurance details are required for " "insurance payment type."
+                    )
+                }
+            )
 
         return data
 
@@ -92,47 +96,49 @@ class QuotePricingSerializer(serializers.Serializer):
 
 
 class QuotePreviewSerializer(serializers.ModelSerializer):
-    vehicle = serializers.DictField(source='vehicle_info')
+    vehicle = serializers.DictField(source="vehicle_info")
     glass = serializers.SerializerMethodField()
     service = serializers.SerializerMethodField()
     payment = serializers.SerializerMethodField()
     pricing = serializers.SerializerMethodField()
-    state_display = serializers.CharField(source='get_state_display')
+    state_display = serializers.CharField(source="get_state_display")
     _actions = serializers.SerializerMethodField()
 
     class Meta:
         model = Quote
         fields = [
-            'id', 'vehicle', 'glass', 'service', 'payment', 'pricing',
-            'state', 'state_display', 'expires_at', 'created_at', '_actions'
+            "id",
+            "vehicle",
+            "glass",
+            "service",
+            "payment",
+            "pricing",
+            "state",
+            "state_display",
+            "expires_at",
+            "created_at",
+            "_actions",
         ]
 
     def get_glass(self, obj):
         # Reconstruct glass info. For now, just return the type.
         # Ideally, we would store the selected glass details in the quote.
-        return {
-            "type": obj.glass_type,
-            "display_name": obj.get_glass_type_display()
-        }
+        return {"type": obj.glass_type, "display_name": obj.get_glass_type_display()}
 
     def get_service(self, obj):
         # Reconstruct service info from model fields
         addr = obj.service_address or {}
-        street = addr.get('street') or addr.get('street_address')
-        city = addr.get('city')
-        state = addr.get('state')
+        street = addr.get("street") or addr.get("street_address")
+        city = addr.get("city")
+        state = addr.get("state")
         zip_code = obj.postal_code
 
         loc_str = f"{street}, {city}, {state} {zip_code}" if street else zip_code
 
         return {
             "type": obj.service_type,
-            "location": {
-                "formatted": loc_str
-            },
-            "assigned_shop": {
-                "name": obj.shop.name if obj.shop else "Unknown"
-            }
+            "location": {"formatted": loc_str},
+            "assigned_shop": {"name": obj.shop.name if obj.shop else "Unknown"},
         }
 
     def get_payment(self, obj):
@@ -140,24 +146,29 @@ class QuotePreviewSerializer(serializers.ModelSerializer):
             "type": obj.payment_type,
             "provider": (
                 obj.insurance_provider.name if obj.insurance_provider else None
-            )
+            ),
         }
 
     def get_pricing(self, obj):
         # Reconstruct pricing from JSON fields or model fields
         pricing_details = obj.pricing_details or {}
-        
-        # Use stored values if available, otherwise calculate
-        subtotal = pricing_details.get('subtotal')
-        if subtotal is None:
-             # Calculate subtotal from costs
-             fees_total = sum(f.get('amount', 0) for f in obj.fees) if isinstance(obj.fees, list) else 0
-             subtotal = obj.part_cost + obj.labor_cost + fees_total
 
-        tax = pricing_details.get('tax', 0)
+        # Use stored values if available, otherwise calculate
+        subtotal = pricing_details.get("subtotal")
+        if subtotal is None:
+            # Calculate subtotal from costs
+            fees_total = (
+                sum(f.get("amount", 0) for f in obj.fees)
+                if isinstance(obj.fees, list)
+                else 0
+            )
+            subtotal = obj.part_cost + obj.labor_cost + fees_total
+
+        tax = pricing_details.get("tax", 0)
 
         # Serialize line items
         from quotes.api.serializers import LineItemSerializer
+
         line_items_data = LineItemSerializer(obj.line_items.all(), many=True).data
 
         return {
@@ -169,9 +180,9 @@ class QuotePreviewSerializer(serializers.ModelSerializer):
 
     def get__actions(self, obj):
         return {
-            "can_approve": obj.state == 'sent',
+            "can_approve": obj.state == "sent",
             "can_modify": False,  # MVP
-            "can_cancel": obj.state in ['draft', 'pending_validation', 'sent']
+            "can_cancel": obj.state in ["draft", "pending_validation", "sent"],
         }
 
 

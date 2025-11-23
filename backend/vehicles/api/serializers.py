@@ -7,9 +7,9 @@ class VehicleIdentificationRequestSerializer(serializers.Serializer):
     state = serializers.CharField(required=False, max_length=2)
 
     def validate(self, data):
-        vin = data.get('vin')
-        license_plate = data.get('license_plate')
-        state = data.get('state')
+        vin = data.get("vin")
+        license_plate = data.get("license_plate")
+        state = data.get("state")
 
         if not vin and not (license_plate and state):
             raise serializers.ValidationError(

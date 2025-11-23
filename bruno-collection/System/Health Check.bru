@@ -1,0 +1,19 @@
+meta {
+  name: Health Check
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/health/
+  body: none
+  auth: none
+}
+
+docs {
+  System health check endpoint.
+  Returns status of:
+  - Database connection
+  - Redis connection
+  - Celery workers
+}

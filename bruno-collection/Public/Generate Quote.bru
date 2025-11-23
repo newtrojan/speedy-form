@@ -1,0 +1,39 @@
+meta {
+  name: Generate Quote
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/v1/quotes/generate/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "vin": "1HGCM82633A004352",
+    "glass_type": "WINDSHIELD",
+    "manufacturer": "Pilkington",
+    "service_type": "mobile",
+    "payment_type": "cash",
+    "location": {
+      "postal_code": "94105",
+      "street_address": "123 Main St",
+      "city": "San Francisco",
+      "state": "CA"
+    },
+    "customer": {
+      "email": "customer@example.com",
+      "phone": "+14155551234",
+      "first_name": "John",
+      "last_name": "Doe"
+    }
+  }
+}
+
+script:post-response {
+  if (res.status === 202) {
+    bru.setVar("task_id", res.body.task_id);
+  }
+}

@@ -1,0 +1,40 @@
+meta {
+  name: Modify Quote
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{base_url}}/api/v1/support/quotes/{{quote_id}}/modify/
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "internal_notes": "Adjusted pricing per customer request",
+    "line_items": [
+      {
+        "id": 1,
+        "subtotal": 300.00
+      },
+      {
+        "type": "fee",
+        "description": "Rush Service Fee",
+        "subtotal": 50.00
+      }
+    ]
+  }
+}
+
+docs {
+  Modify quote line items and internal notes.
+  - Update existing items by ID
+  - Add new custom items
+  - Total is automatically recalculated
+  Only allowed in pending_validation state.
+}

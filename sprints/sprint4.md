@@ -265,7 +265,7 @@
   }
   ```
 
-### Bulk Actions Endpoint (Optional)
+### Bulk Actions Endpoint **[DEFERRED - Post-MVP]**
 - [ ] View: `BulkQuoteActionsView` (APIView)
 - [ ] URL: `POST /api/v1/support/quotes/bulk/`
 - [ ] Permission: IsSupportAgent
@@ -464,7 +464,7 @@
 
 ## Phase 4.5: Error Handling & Logging
 
-### Sentry Integration (Optional)
+### Sentry Integration **[DEFERRED - Post-MVP]**
 - [ ] Install: `pip install sentry-sdk`
 - [ ] Configure Sentry in settings:
   ```python
@@ -531,7 +531,7 @@
 
 ---
 
-## Phase 4.7: Production Deployment Configuration
+## Phase 4.7: Production Deployment Configuration **[DEFERRED - Will do after frontend]**
 
 ### Docker Production Setup
 - [ ] Create `Dockerfile.prod`:
@@ -782,7 +782,7 @@
 
 ---
 
-## Phase 4.9: VPS Deployment
+## Phase 4.9: VPS Deployment **[DEFERRED - Will do after frontend]**
 
 ### VPS Setup
 - [ ] Provision VPS (DigitalOcean/Linode/Hetzner):

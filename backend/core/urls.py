@@ -5,16 +5,23 @@ from drf_spectacular.views import (
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from core.views import HealthCheckView
+from core.auth_views import (
+    LoginView,
+    RefreshTokenView,
+    LogoutView,
+    CurrentUserView,
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Health Check
     path("api/health/", HealthCheckView.as_view(), name="health-check"),
     # Auth
-    path("api/auth/login/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/v1/auth/login/", LoginView.as_view(), name="auth-login"),
+    path("api/v1/auth/refresh/", RefreshTokenView.as_view(), name="auth-refresh"),
+    path("api/v1/auth/logout/", LogoutView.as_view(), name="auth-logout"),
+    path("api/v1/auth/me/", CurrentUserView.as_view(), name="auth-me"),
     # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
@@ -32,6 +39,7 @@ urlpatterns = [
                 path("shops/", include("shops.api.urls")),
                 path("pricing/", include("pricing.api.urls")),
                 path("quotes/", include("quotes.api.urls")),
+                path("support/", include("support_dashboard.api.urls")),
             ]
         ),
     ),

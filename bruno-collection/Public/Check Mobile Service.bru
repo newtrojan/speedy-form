@@ -1,0 +1,20 @@
+meta {
+  name: Check Mobile Service
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/shops/check-mobile/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "postal_code": "94105",
+    "street_address": "123 Main St",
+    "city": "San Francisco",
+    "state": "CA"
+  }
+}

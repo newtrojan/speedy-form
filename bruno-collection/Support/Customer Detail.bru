@@ -1,0 +1,23 @@
+meta {
+  name: Customer Detail
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{base_url}}/api/v1/support/customers/{{customer_id}}/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+docs {
+  Get customer details including:
+  - Contact information
+  - Quote history (last 10)
+  - Total spent
+  - Total jobs completed
+}

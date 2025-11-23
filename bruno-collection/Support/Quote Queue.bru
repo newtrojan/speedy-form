@@ -1,0 +1,19 @@
+meta {
+  name: Quote Queue
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/support/quotes/?state=pending_validation
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+params:query {
+  state: pending_validation
+}

@@ -1,0 +1,17 @@
+meta {
+  name: Identify Vehicle
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/v1/vehicles/identify/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "vin": "1HGCM82633A004352"
+  }
+}

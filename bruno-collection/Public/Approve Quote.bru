@@ -1,0 +1,22 @@
+meta {
+  name: Approve Quote
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/v1/quotes/approve/{{quote_id}}/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "token": "test-token-123"
+  }
+}
+
+docs {
+  Use the approval token sent via email.
+  Test token: test-token-123 (from seeded data)
+}
