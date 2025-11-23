@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #f4f4f4; padding: 10px; text-align: center; }
+        .content { padding: 20px; }
+        .footer { text-align: center; font-size: 12px; color: #777; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Update on Your Quote</h2>
+        </div>
+        <div class="content">
+            <p>Hello,</p>
+            <p>Regarding your quote request (ID: {{ quote.id }}) for your <strong>{{ vehicle_desc }}</strong>.</p>
+            
+            <p>Unfortunately, we are unable to proceed with this quote at this time.</p>
+            
+            <p><strong>Reason:</strong></p>
+            <blockquote style="background: #f9f9f9; border-left: 5px solid #ccc; margin: 1.5em 10px; padding: 0.5em 10px;">
+                {{ reason }}
+            </blockquote>
+            
+            <p>If you have any questions or would like to discuss alternative options, please contact our support team.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 AutoGlass Quote System. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

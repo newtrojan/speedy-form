@@ -10,3 +10,4 @@ redis==5.0.4
 celery==5.4.0
 pillow==10.3.0
 requests==2.32.0
+python-json-logger>=2.0.7

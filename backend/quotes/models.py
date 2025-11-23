@@ -92,6 +92,9 @@ class Quote(models.Model):
 
     task_id = models.CharField(max_length=255, blank=True)
 
+    approval_token_hash = models.CharField(max_length=64, null=True, blank=True)
+    approval_token_created_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         indexes = [
             models.Index(fields=["state", "created_at"]),
@@ -101,18 +104,67 @@ class Quote(models.Model):
     def __str__(self):
         return f"Quote {self.id} ({self.state})"
 
+    def verify_approval_token(self, token: str) -> bool:
+        """
+        Verifies if the provided token matches the stored hash and is not expired.
+        """
+        import hashlib
+        from django.utils import timezone
+        from datetime import timedelta
+
+        if not self.approval_token_hash or not self.approval_token_created_at:
+            return False
+
+        # Check expiration (24 hours)
+        if timezone.now() > self.approval_token_created_at + timedelta(hours=24):
+            return False
+
+        # Verify hash
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        return token_hash == self.approval_token_hash
+
+    def is_approval_token_expired(self) -> bool:
+        from django.utils import timezone
+        from datetime import timedelta
+
+        if not self.approval_token_created_at:
+            return True
+
+        return timezone.now() > self.approval_token_created_at + timedelta(hours=24)
+
     # Transitions
     @transition(field=state, source="draft", target="pending_validation")
-    def submit_for_validation(self):
-        pass
+    def submit_for_validation(self, user=None, notes=""):
+        self.log_state_change("draft", "pending_validation", user, notes)
 
-    @transition(field=state, source=["draft", "pending_validation"], target="sent")
-    def send_to_customer(self):
-        pass
+    @transition(field=state, source="pending_validation", target="sent")
+    def send_to_customer(self, user=None, notes=""):
+        self.log_state_change("pending_validation", "sent", user, notes)
 
     @transition(field=state, source="sent", target="customer_approved")
-    def approve(self):
-        pass
+    def customer_approve(self, user=None, notes=""):
+        self.log_state_change("sent", "customer_approved", user, notes)
+
+    @transition(field=state, source="customer_approved", target="scheduled")
+    def schedule_appointment(self, user=None, notes=""):
+        self.log_state_change("customer_approved", "scheduled", user, notes)
+
+    @transition(field=state, source="scheduled", target="converted")
+    def convert_to_job(self, user=None, notes=""):
+        self.log_state_change("scheduled", "converted", user, notes)
+
+    @transition(field=state, source=["sent", "pending_validation"], target="expired")
+    def expire_quote(self, user=None, notes=""):
+        self.log_state_change(self.state, "expired", user, notes)
+
+    @transition(field=state, source="pending_validation", target="rejected")
+    def reject_quote(self, user=None, notes=""):
+        self.log_state_change("pending_validation", "rejected", user, notes)
+
+    def log_state_change(self, from_state, to_state, user=None, notes=""):
+        self.logs.create(
+            from_state=from_state, to_state=to_state, user=user, notes=notes
+        )
 
 
 class QuoteLineItem(models.Model):

@@ -1,39 +1,43 @@
 from django.db import models  # noqa: F401
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+from decimal import Decimal
 
 
 class PricingConfig(models.Model):
     """Singleton model for global pricing configuration"""
 
     standard_labor_rate = models.DecimalField(
-        max_digits=6, decimal_places=2, default=150.00
+        max_digits=6, decimal_places=2, default=Decimal("150.00")
     )
     complex_labor_rate = models.DecimalField(
-        max_digits=6, decimal_places=2, default=200.00
+        max_digits=6, decimal_places=2, default=Decimal("200.00")
     )
 
     environmental_fee = models.DecimalField(
-        max_digits=6, decimal_places=2, default=5.00
+        max_digits=6, decimal_places=2, default=Decimal("5.00")
     )
-    disposal_fee = models.DecimalField(max_digits=6, decimal_places=2, default=10.00)
+    disposal_fee = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("10.00")
+    )
 
     markup_multiplier = models.DecimalField(
-        max_digits=4, decimal_places=2, default=1.30
+        max_digits=4, decimal_places=2, default=Decimal("1.30")
     )
 
     mobile_fee_tier_1_distance = models.PositiveIntegerField(default=15)
     mobile_fee_tier_1_amount = models.DecimalField(
-        max_digits=6, decimal_places=2, default=25.00
+        max_digits=6, decimal_places=2, default=Decimal("25.00")
     )
 
     mobile_fee_tier_2_distance = models.PositiveIntegerField(default=30)
     mobile_fee_tier_2_amount = models.DecimalField(
-        max_digits=6, decimal_places=2, default=50.00
+        max_digits=6, decimal_places=2, default=Decimal("50.00")
     )
 
     mobile_fee_tier_3_amount = models.DecimalField(
-        max_digits=6, decimal_places=2, default=75.00
+        max_digits=6, decimal_places=2, default=Decimal("75.00")
     )
 
     max_mobile_service_distance = models.PositiveIntegerField(default=50)
@@ -131,7 +135,15 @@ class ShopPricingRule(models.Model):
         unique_together = ("shop", "manufacturer", "glass_type", "pricing_strategy")
 
     def __str__(self):
-        return f"{self.shop.name} - {self.name}"
+        return f"{self.shop.name} - {self.manufacturer} ({self.pricing_strategy})"
+
+    def is_valid_now(self):
+        now = timezone.now()
+        if self.valid_from and now < self.valid_from:
+            return False
+        if self.valid_until and now > self.valid_until:
+            return False
+        return True
 
     def calculate_price(self, list_price):
         if self.pricing_strategy == "percentage_discount":
