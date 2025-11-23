@@ -157,8 +157,10 @@ def generate_quote_task(
 
         logger.info(f"Quote {quote.id} created successfully.")
 
-        # Trigger email (optional, usually happens after validation or immediate if auto-approved)
+        # Trigger email (optional, usually happens after validation
+        # or immediate if auto-approved)
         # For now, let's just return the ID
+        send_quote_email.delay(quote.id)
 
         return {
             "status": "completed",
@@ -211,7 +213,8 @@ def expire_old_quotes():
     if count > 0:
         logger.info(f"Expiring {count} old quotes.")
         # Bulk update doesn't trigger signals/FSM transitions usually,
-        # so iterating might be safer for FSM consistency, or use bulk update if just state field.
+        # so iterating might be safer for FSM consistency, or use bulk
+        # update if just state field.
         # For FSM, we should ideally call the transition method.
         for quote in expired_quotes:
             quote.state = "expired"  # Or call transition method

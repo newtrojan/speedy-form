@@ -20,12 +20,12 @@
         <div class="content">
             <p>Hello,</p>
             <p>Here is the quote you requested for your <strong>{{ vehicle_desc }}</strong>.</p>
-            
+
             <h3>Quote Details</h3>
             <p><strong>Quote ID:</strong> {{ quote.id }}</p>
             <p><strong>Shop:</strong> {{ quote.shop.name }}</p>
             <p><strong>Total Price:</strong> ${{ quote.total_price }}</p>
-            
+
             <h3>Breakdown</h3>
             <table>
                 <thead>
@@ -43,11 +43,11 @@
                     {% endfor %}
                 </tbody>
             </table>
-            
+
             <p style="margin-top: 20px;">
                 <a href="{{ approval_link }}" class="button">Approve Quote</a>
             </p>
-            
+
             <p>This quote is valid until {{ quote.expires_at|date:"F j, Y" }}.</p>
         </div>
         <div class="footer">

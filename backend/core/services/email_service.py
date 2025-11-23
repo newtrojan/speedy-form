@@ -76,7 +76,11 @@ class EmailService(BaseService):
         Sends a rejection email.
         """
         try:
-            vehicle_desc = f"{quote.vehicle_info.get('year')} {quote.vehicle_info.get('make')} {quote.vehicle_info.get('model')}"
+            vehicle_desc = (
+                f"{quote.vehicle_info.get('year')} "
+                f"{quote.vehicle_info.get('make')} "
+                f"{quote.vehicle_info.get('model')}"
+            )
 
             context = {
                 "quote": quote,
@@ -110,7 +114,11 @@ class EmailService(BaseService):
         Sends an approval confirmation email.
         """
         try:
-            vehicle_desc = f"{quote.vehicle_info.get('year')} {quote.vehicle_info.get('make')} {quote.vehicle_info.get('model')}"
+            vehicle_desc = (
+                f"{quote.vehicle_info.get('year')} "
+                f"{quote.vehicle_info.get('make')} "
+                f"{quote.vehicle_info.get('model')}"
+            )
             scheduling_link = "http://localhost:3000/schedule"  # Placeholder
 
             context = {
@@ -126,7 +134,9 @@ class EmailService(BaseService):
 
             send_mail(
                 subject=subject,
-                message="Your quote has been approved! Please schedule your appointment.",
+                message=(
+                    "Your quote has been approved! " "Please schedule your appointment."
+                ),
                 html_message=html_message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[quote.customer.email],
@@ -134,13 +144,15 @@ class EmailService(BaseService):
             )
 
             self.log_info(
-                f"Approval confirmation email sent to {quote.customer.email} for quote {quote.id}"
+                f"Approval confirmation email sent to {quote.customer.email} "
+                f"for quote {quote.id}"
             )
             return True
 
         except Exception as e:
             self.log_error(
-                f"Failed to send approval confirmation email for {quote.id}: {str(e)}"
+                f"Failed to send approval confirmation email for "
+                f"{quote.id}: {str(e)}"
             )
             return False
 

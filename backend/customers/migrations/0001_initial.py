@@ -8,35 +8,103 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Customer',
+            name="Customer",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('email', models.EmailField(db_index=True, max_length=254, unique=True, verbose_name='email address')),
-                ('phone', models.CharField(max_length=20, verbose_name='phone number')),
-                ('first_name', models.CharField(blank=True, max_length=150, verbose_name='first name')),
-                ('last_name', models.CharField(blank=True, max_length=150, verbose_name='last name')),
-                ('street_address', models.CharField(blank=True, max_length=255, verbose_name='street address')),
-                ('street_address_2', models.CharField(blank=True, max_length=255, verbose_name='street address 2')),
-                ('city', models.CharField(blank=True, max_length=100, verbose_name='city')),
-                ('state', models.CharField(blank=True, max_length=100, verbose_name='state')),
-                ('postal_code', models.CharField(blank=True, db_index=True, max_length=20, verbose_name='postal code')),
-                ('location', django.contrib.gis.db.models.fields.PointField(blank=True, null=True, srid=4326, verbose_name='location')),
-                ('sms_opt_in', models.BooleanField(default=False, verbose_name='SMS opt-in')),
-                ('email_opt_in', models.BooleanField(default=False, verbose_name='email opt-in')),
-                ('total_jobs', models.PositiveIntegerField(default=0)),
-                ('total_spent', models.DecimalField(decimal_places=2, default=0, max_digits=10)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "email",
+                    models.EmailField(
+                        db_index=True,
+                        max_length=254,
+                        unique=True,
+                        verbose_name="email address",
+                    ),
+                ),
+                ("phone", models.CharField(max_length=20, verbose_name="phone number")),
+                (
+                    "first_name",
+                    models.CharField(
+                        blank=True, max_length=150, verbose_name="first name"
+                    ),
+                ),
+                (
+                    "last_name",
+                    models.CharField(
+                        blank=True, max_length=150, verbose_name="last name"
+                    ),
+                ),
+                (
+                    "street_address",
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="street address"
+                    ),
+                ),
+                (
+                    "street_address_2",
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="street address 2"
+                    ),
+                ),
+                (
+                    "city",
+                    models.CharField(blank=True, max_length=100, verbose_name="city"),
+                ),
+                (
+                    "state",
+                    models.CharField(blank=True, max_length=100, verbose_name="state"),
+                ),
+                (
+                    "postal_code",
+                    models.CharField(
+                        blank=True,
+                        db_index=True,
+                        max_length=20,
+                        verbose_name="postal code",
+                    ),
+                ),
+                (
+                    "location",
+                    django.contrib.gis.db.models.fields.PointField(
+                        blank=True, null=True, srid=4326, verbose_name="location"
+                    ),
+                ),
+                (
+                    "sms_opt_in",
+                    models.BooleanField(default=False, verbose_name="SMS opt-in"),
+                ),
+                (
+                    "email_opt_in",
+                    models.BooleanField(default=False, verbose_name="email opt-in"),
+                ),
+                ("total_jobs", models.PositiveIntegerField(default=0)),
+                (
+                    "total_spent",
+                    models.DecimalField(decimal_places=2, default=0, max_digits=10),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
             options={
-                'verbose_name': 'customer',
-                'verbose_name_plural': 'customers',
-                'indexes': [models.Index(fields=['email'], name='customers_c_email_4fdeb3_idx'), models.Index(fields=['postal_code'], name='customers_c_postal__c16697_idx')],
+                "verbose_name": "customer",
+                "verbose_name_plural": "customers",
+                "indexes": [
+                    models.Index(fields=["email"], name="customers_c_email_4fdeb3_idx"),
+                    models.Index(
+                        fields=["postal_code"], name="customers_c_postal__c16697_idx"
+                    ),
+                ],
             },
         ),
     ]

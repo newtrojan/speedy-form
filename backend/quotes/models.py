@@ -189,6 +189,9 @@ class QuoteLineItem(models.Model):
         self.subtotal = self.unit_price * self.quantity
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        return f"{self.type}: {self.description} (Quote {self.quote.id})"
+
 
 class QuoteStateLog(models.Model):
     quote = models.ForeignKey(Quote, on_delete=models.CASCADE, related_name="logs")
@@ -200,3 +203,6 @@ class QuoteStateLog(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.from_state} -> {self.to_state} (Quote {self.quote.id})"

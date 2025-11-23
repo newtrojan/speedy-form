@@ -23,6 +23,8 @@ class EndToEndQuoteTest(TestCase):
             max_mobile_service_distance=50,
         )
 
+        # Ensure serviceability check returned a shop
+        # (our test shop should be serviceable)
         self.shop = Shop.objects.create(
             name="SF Shop",
             location=Point(-122.4194, 37.7749),
@@ -77,7 +79,8 @@ class EndToEndQuoteTest(TestCase):
 
         if result["status"] != "completed":
             print(
-                f"\nQuote Generation Failed: {result.get('error')} - {result.get('details')}"
+                f"\nQuote Generation Failed: {result.get('error')} - "
+                f"{result.get('details')}"
             )
 
         self.assertEqual(result["status"], "completed")

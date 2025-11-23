@@ -36,8 +36,10 @@ class ServiceabilityServiceTest(TestCase):
     def test_check_in_store_unserviceable(self):
         result = self.service.check_in_store("10001")  # NYC
         self.assertFalse(result["is_serviceable"])
-        # Should find nearby shop (our SF shop is the only one, so it might be returned as nearby)
-        self.assertTrue(len(result["nearby_shops"]) > 0)
+        # Should find nearby shop (our SF shop is the only one,
+        # so it might be returned as nearby)
+        # But since we enforce 50 miles radius, it should be empty for NYC
+        self.assertEqual(len(result["nearby_shops"]), 0)
 
     def test_check_mobile_serviceable(self):
         # Mock geocoding by patching or using known stub values

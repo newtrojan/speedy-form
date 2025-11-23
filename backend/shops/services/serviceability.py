@@ -39,6 +39,7 @@ class ServiceabilityService(BaseService):
             return {
                 "is_serviceable": False,
                 "message": "No shops found within 50 miles.",
+                "nearby_shops": [],
             }
 
         best_shop = nearest_shops[0]

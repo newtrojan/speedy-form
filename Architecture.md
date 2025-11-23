@@ -160,13 +160,13 @@ class Quote(models.Model):
     vehicle_info = models.JSONField()  # Store NAGS response
     customer = models.ForeignKey('customers.Customer', on_delete=models.PROTECT)
     postal_code = models.CharField(max_length=7)
-    
+
     # Pricing
     part_cost = models.DecimalField(max_digits=8, decimal_places=2)
     labor_cost = models.DecimalField(max_digits=8, decimal_places=2)
     fees = models.JSONField()  # {'env': 5.00, 'disposal': 10.00}
     total_price = models.DecimalField(max_digits=8, decimal_places=2)
-    
+
     # State machine
     STATE_CHOICES = [
         ('draft', 'Draft'),
@@ -179,13 +179,13 @@ class Quote(models.Model):
         ('rejected', 'Rejected'),
     ]
     state = FSMField(default='draft')
-    
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     source = models.CharField(choices=[('website', 'Website'), ('vapi', 'VAPI Call')])
     task_id = models.CharField(max_length=255, blank=True)  # Celery tracking
-    
+
     class Meta:
         indexes = [
             models.Index(fields=['state', 'created_at']),
@@ -206,7 +206,7 @@ class Shop(models.Model):
     address = models.TextField()
     phone = models.CharField(max_length=20)
     location = models.PointField(srid=4326)  # PostGIS for radius search
-    
+
 class ServiceArea(models.Model):
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
     postal_code = models.CharField(max_length=7, db_index=True)
@@ -224,13 +224,13 @@ def generate_quote_task(self, vin, postal_code, customer_email):
         if not ShopService.is_serviceable(postal_code):
             send_unserviceable_notification.delay(customer_email)
             return None
-        
+
         # 2. Fetch from NAGS (slow, ~3s)
         vehicle_data = NAGSClient().lookup_vin(vin)
-        
+
         # 3. Calculate pricing
         pricing = PricingService.calculate(vin, postal_code, vehicle_data)
-        
+
         # 4. Create quote
         quote = Quote.objects.create(
             vin=vin,
@@ -240,15 +240,15 @@ def generate_quote_task(self, vin, postal_code, customer_email):
             **pricing,
             source='website'
         )
-        
+
         # 5. Notify support
         notify_support_queue.delay(quote.id)
-        
+
         # 6. Send quote email
         send_quote_email.delay(quote.id)
-        
+
         return quote.id
-        
+
     except NAGSError as e:
         # Retry on NAGS timeout
         raise self.retry(exc=e)
@@ -260,17 +260,17 @@ Copy
 def process_vapi_transcript(call_id, transcript, customer_phone):
     """Process AI call transcript"""
     vin = extract_vin(transcript)
-    
+
     if vin:
         quote_task = generate_quote_task.delay(
             vin=vin,
             postal_code='AUTO',  # Derive from caller area code
             customer_email=f'unknown_{call_id}@placeholder.com'
         )
-        
+
         # Update quote with VAPI source later
         Quote.objects.filter(task_id=quote_task.id).update(source='vapi')
-        
+
         # Send SMS with quote link
         send_sms.delay(
             phone=customer_phone,

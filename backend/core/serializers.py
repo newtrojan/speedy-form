@@ -1,19 +1,13 @@
 from rest_framework import serializers
 
 
-class BaseSerializer(serializers.ModelSerializer):
-    """
-    Base serializer with common logic if needed.
-    """
-
-    pass
+class TimestampedSerializer(serializers.Serializer):
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
 
 
-class ErrorResponseSerializer(serializers.Serializer):
-    """
-    Standard error response format.
-    """
-
-    status = serializers.CharField()
+class ErrorSerializer(serializers.Serializer):
+    error = serializers.CharField()
     message = serializers.CharField()
-    details = serializers.JSONField(required=False)
+    field = serializers.CharField(required=False, allow_null=True)
+    details = serializers.DictField(required=False, allow_null=True)

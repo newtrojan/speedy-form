@@ -9,42 +9,91 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Shop',
+            name="Shop",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255, verbose_name='shop name')),
-                ('street_address', models.CharField(max_length=255, verbose_name='street address')),
-                ('city', models.CharField(max_length=100, verbose_name='city')),
-                ('state', models.CharField(max_length=100, verbose_name='state')),
-                ('postal_code', models.CharField(max_length=20, verbose_name='postal code')),
-                ('phone', models.CharField(max_length=20, verbose_name='phone number')),
-                ('email', models.EmailField(max_length=254, verbose_name='email address')),
-                ('location', django.contrib.gis.db.models.fields.PointField(srid=4326, verbose_name='location')),
-                ('offers_mobile_service', models.BooleanField(default=True)),
-                ('max_mobile_radius_miles', models.PositiveIntegerField(default=50)),
-                ('business_hours', models.JSONField(default=dict)),
-                ('is_accepting_jobs', models.BooleanField(default=True)),
-                ('is_active', models.BooleanField(default=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=255, verbose_name="shop name")),
+                (
+                    "street_address",
+                    models.CharField(max_length=255, verbose_name="street address"),
+                ),
+                ("city", models.CharField(max_length=100, verbose_name="city")),
+                ("state", models.CharField(max_length=100, verbose_name="state")),
+                (
+                    "postal_code",
+                    models.CharField(max_length=20, verbose_name="postal code"),
+                ),
+                ("phone", models.CharField(max_length=20, verbose_name="phone number")),
+                (
+                    "email",
+                    models.EmailField(max_length=254, verbose_name="email address"),
+                ),
+                (
+                    "location",
+                    django.contrib.gis.db.models.fields.PointField(
+                        srid=4326, verbose_name="location"
+                    ),
+                ),
+                ("offers_mobile_service", models.BooleanField(default=True)),
+                ("max_mobile_radius_miles", models.PositiveIntegerField(default=50)),
+                ("business_hours", models.JSONField(default=dict)),
+                ("is_accepting_jobs", models.BooleanField(default=True)),
+                ("is_active", models.BooleanField(default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
         ),
         migrations.CreateModel(
-            name='ServiceArea',
+            name="ServiceArea",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('postal_code', models.CharField(db_index=True, max_length=20, verbose_name='postal code')),
-                ('is_active', models.BooleanField(default=True)),
-                ('shop', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='service_areas', to='shops.shop')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "postal_code",
+                    models.CharField(
+                        db_index=True, max_length=20, verbose_name="postal code"
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=True)),
+                (
+                    "shop",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="service_areas",
+                        to="shops.shop",
+                    ),
+                ),
             ],
             options={
-                'indexes': [models.Index(fields=['postal_code'], name='shops_servi_postal__f0e2b9_idx'), models.Index(fields=['shop', 'postal_code'], name='shops_servi_shop_id_22aa53_idx')],
-                'unique_together': {('shop', 'postal_code')},
+                "indexes": [
+                    models.Index(
+                        fields=["postal_code"], name="shops_servi_postal__f0e2b9_idx"
+                    ),
+                    models.Index(
+                        fields=["shop", "postal_code"],
+                        name="shops_servi_shop_id_22aa53_idx",
+                    ),
+                ],
+                "unique_together": {("shop", "postal_code")},
             },
         ),
     ]

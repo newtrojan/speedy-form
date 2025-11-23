@@ -4,8 +4,8 @@
 
 **Product Vision**: Build a self-service online quote generation system that enables vehicle owners to receive instant auto glass replacement quotes through VIN lookup, validates serviceability by location, and converts approved quotes into appointment scheduling while empowering internal support teams to validate and modify pricing.
 
-**MVP Timeline**: 6 weeks  
-**Target Users**: Vehicle owners, Support Agents, Admin  
+**MVP Timeline**: 6 weeks
+**Target Users**: Vehicle owners, Support Agents, Admin
 **Success Metrics**: 100 quotes/day, &lt;5% pricing errors, &lt;24hr validation SLA
 
 ---
@@ -34,11 +34,11 @@
 
 **Feature**: VIN-based vehicle lookup
 - **Input**: 17-character VIN (manual entry)
-- **Validation**: 
+- **Validation**:
   - Checksum validation using NHTSA algorithm
   - Must support letters A-Z (except I,O,Q) and digits 0-9
   - Minimum length: 17 characters
-- **Error Handling**: 
+- **Error Handling**:
   - Invalid VIN → "Please check your VIN and try again"
   - Unsupported vehicle → "We currently don't service this vehicle"
 - **Future Enhancement**: Plate-to-VIN API integration (deprioritized for MVP)
@@ -101,7 +101,7 @@
 - **Optional Fields**:
   - First Name, Last Name
 - **Consent**: SMS opt-in checkbox (GDPR/CCPA compliance)
-- **Validation**: 
+- **Validation**:
   - Email verification link sent before quote delivery (Phase 2)
   - Phone SMS verification (Phase 2)
 

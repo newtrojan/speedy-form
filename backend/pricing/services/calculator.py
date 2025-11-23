@@ -45,7 +45,8 @@ class PricingCalculator(BaseService):
         # In our mock data, glass_parts is a list of dicts.
         # We need to find the one matching the requested glass_type.
         # For MVP mock data structure, let's assume it looks like:
-        # [{"type": "windshield", "nags_id": "...", "nags_price": 450.00, "pgw_price": ...}]
+        # [{"type": "windshield", "nags_id": "...",
+        #   "nags_price": 450.00, "pgw_price": ...}]
 
         selected_part = None
         for part in glass_parts:
@@ -94,8 +95,10 @@ class PricingCalculator(BaseService):
             }
         else:
             # Fallback to default markup if no specific rule found
-            self.log_warning(f"No pricing rule found for shop {shop_id}, using defaults")
-            
+            self.log_warning(
+                f"No pricing rule found for shop {shop_id}, using defaults"
+            )
+
             # Apply global markup from config if no rule
             final_part_price = list_price * config.markup_multiplier
             discount_info = {
@@ -136,7 +139,8 @@ class PricingCalculator(BaseService):
                         f"Distance {distance_miles} miles is beyond service radius."
                     )
             else:
-                # If distance not provided but mobile requested, maybe use Tier 1 as estimate?
+                # If distance not provided but mobile requested,
+                # maybe use Tier 1 as estimate?
                 # Or raise error. Let's use Tier 1 for estimate.
                 mobile_fee = config.mobile_fee_tier_1_amount
                 fees.append({"name": "Mobile Service Fee (Est)", "amount": mobile_fee})
@@ -158,8 +162,10 @@ class PricingCalculator(BaseService):
                     "provider": provider.name,
                     "requires_approval": provider.requires_pre_approval,
                 }
-                # If provider has custom markup, maybe we should have used that instead of shop rule?
-                # Keeping it simple: Shop price is what we charge, Insurance pays it.
+                # If provider has custom markup, maybe we should
+                # have used that instead of shop rule?
+                # Keeping it simple: Shop price is what we charge,
+                # Insurance pays it.
             except InsuranceProvider.DoesNotExist:
                 pass
 
@@ -252,7 +258,10 @@ class PricingCalculator(BaseService):
         items.append(
             {
                 "type": "part",
-                "description": f"Glass Part: {part_data.get('description', 'Replacement Glass')}",
+                "description": (
+                    f"Glass Part: "
+                    f"{part_data.get('description', 'Replacement Glass')}"
+                ),
                 "unit_price": round(part_price, 2),
                 "quantity": 1,
                 "subtotal": round(part_price, 2),
