@@ -29,6 +29,8 @@ class AutoboltClient:
                     "type": "windshield",
                     "nags_id": "FW04567",
                     "description": "Green Tint, Rain Sensor",
+                    "nags_price": 425.00,
+                    "pgw_price": 385.00,
                 }
             ],
         }
@@ -55,6 +57,8 @@ class AutoboltClient:
                     "type": "windshield",
                     "nags_id": "FW03890",
                     "description": "Green Tint, Lane Departure",
+                    "nags_price": 395.00,
+                    "pgw_price": 355.00,
                 }
             ],
         }

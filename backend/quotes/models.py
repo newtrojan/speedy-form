@@ -47,6 +47,32 @@ class Quote(models.Model):
     ]
     glass_type = models.CharField(max_length=50, choices=GLASS_TYPE_CHOICES)
 
+    DAMAGE_TYPE_CHOICES = [
+        ("chip", "Chip(s)"),
+        ("crack", "Crack(s)"),
+        ("both", "Both Chips and Cracks"),
+        ("unknown", "Unknown/Not Specified"),
+    ]
+    damage_type = models.CharField(
+        max_length=20,
+        choices=DAMAGE_TYPE_CHOICES,
+        default="unknown",
+        blank=True,
+    )
+
+    DAMAGE_QUANTITY_CHOICES = [
+        ("1", "1"),
+        ("2", "2"),
+        ("3+", "3 or more"),
+        ("unknown", "Unknown/Not Specified"),
+    ]
+    damage_quantity = models.CharField(
+        max_length=10,
+        choices=DAMAGE_QUANTITY_CHOICES,
+        default="unknown",
+        blank=True,
+    )
+
     SERVICE_TYPE_CHOICES = [
         ("mobile", "Mobile Service"),
         ("in_store", "In-Store Service"),

@@ -57,9 +57,9 @@ class IdentifyVehicleView(APIView):
                     "year": data.get("year"),
                     "make": data.get("make"),
                     "model": data.get("model"),
-                    "style": data.get("style"),
+                    "body_type": data.get("body_style"),
                 },
-                "glass_options": data.get("glass_parts", []),
+                "glass_options": data.get("glass_parts", {}),
             }
 
             return Response(response_data, status=status.HTTP_200_OK)
@@ -67,6 +67,11 @@ class IdentifyVehicleView(APIView):
         except VehicleNotFoundException as e:
             return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
         except Exception:
+            # Log the error for debugging
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.exception("Error identifying vehicle")
             return Response(
                 {"error": "An unexpected error occurred"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

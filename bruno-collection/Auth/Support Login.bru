@@ -1,0 +1,26 @@
+meta {
+  name: Support Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/auth/login/
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "support@example.com",
+    "password": "password123"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    // Store access_token for Support endpoints
+    bru.setVar("support_access_token", res.body.access_token);
+    // refresh_token is in httpOnly cookie (auto-managed by Bruno)
+  }
+}

@@ -225,9 +225,7 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
     def get_total_spent(self, obj):
         return sum(
             q.total_price
-            for q in obj.quotes.filter(
-                state__in=["customer_approved", "converted"]
-            )
+            for q in obj.quotes.filter(state__in=["customer_approved", "converted"])
         )
 
     def get_total_jobs(self, obj):
@@ -238,7 +236,11 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         return [
             {
                 "id": str(q.id),
-                "vehicle": f"{q.vehicle_info.get('year')} {q.vehicle_info.get('make')} {q.vehicle_info.get('model')}",
+                "vehicle": (
+                    f"{q.vehicle_info.get('year')} "
+                    f"{q.vehicle_info.get('make')} "
+                    f"{q.vehicle_info.get('model')}"
+                ),
                 "total": q.total_price,
                 "state": q.state,
                 "created_at": q.created_at,

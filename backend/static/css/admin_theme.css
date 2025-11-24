@@ -1,0 +1,106 @@
+:root {
+    --primary: #18181b;
+    --secondary: #27272a;
+    --accent: #3f3f46;
+    --primary-fg: #fafafa;
+    --body-fg: #3f3f46;
+    --body-bg: #ffffff;
+    --body-quiet-color: #71717a;
+    --header-color: #18181b;
+    --header-branding-color: #18181b;
+    --header-bg: #ffffff;
+    --header-link-color: #18181b;
+    --breadcrumbs-fg: #52525b;
+    --breadcrumbs-link-fg: #3f3f46;
+    --breadcrumbs-bg: #f4f4f5;
+    --link-fg: #18181b;
+    --link-hover-color: #27272a;
+    --link-selected-fg: #18181b;
+    --hairline-color: #e4e4e7;
+    --border-color: #e4e4e7;
+    --error-fg: #ef4444;
+    --message-success-bg: #dcfce7;
+    --message-warning-bg: #fef9c3;
+    --message-error-bg: #fee2e2;
+    --darkened-bg: #f4f4f5;
+    --selected-bg: #f4f4f5;
+    --selected-row: #f4f4f5;
+    --button-fg: #ffffff;
+    --button-bg: #18181b;
+    --button-hover-bg: #27272a;
+    --default-button-bg: #f4f4f5;
+    --default-button-hover-bg: #e4e4e7;
+    --close-button-bg: #71717a;
+    --close-button-hover-bg: #52525b;
+    --delete-button-bg: #ef4444;
+    --delete-button-hover-bg: #dc2626;
+    --object-tools-fg: #ffffff;
+    --object-tools-bg: #18181b;
+    --object-tools-hover-bg: #27272a;
+}
+
+/* Header */
+#header {
+    background: var(--header-color);
+    color: var(--primary-fg);
+}
+
+#header a:link, #header a:visited {
+    color: var(--primary-fg);
+}
+
+#branding h1 {
+    color: var(--primary-fg);
+}
+
+/* Modules */
+.module caption, .module h2 {
+    background: var(--secondary);
+    color: var(--primary-fg);
+}
+
+/* Buttons */
+.button, input[type=submit], input[type=button], .submit-row input, a.button {
+    background: var(--button-bg);
+    color: var(--button-fg);
+    border: none;
+    border-radius: 6px;
+    padding: 10px 15px;
+    transition: background 0.2s;
+}
+
+.button:hover, input[type=submit]:hover, input[type=button]:hover, .submit-row input:hover, a.button:hover {
+    background: var(--button-hover-bg);
+}
+
+.button.default, input[type=submit].default, .submit-row input.default {
+    background: var(--button-bg);
+}
+
+/* Form rows */
+.form-row {
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Change list */
+#changelist table thead th {
+    background: var(--secondary);
+    color: var(--primary-fg);
+}
+
+#changelist table thead th a {
+    color: var(--primary-fg);
+}
+
+#changelist tr.selected {
+    background: var(--selected-row);
+}
+
+/* Login */
+.login #header {
+    background: var(--header-color);
+}
+
+.login .submit-row input {
+    background: var(--button-bg);
+}

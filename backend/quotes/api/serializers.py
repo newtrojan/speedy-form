@@ -31,6 +31,14 @@ class QuoteGenerationRequestSerializer(serializers.Serializer):
     service_type = serializers.ChoiceField(choices=["mobile", "in_store"])
     payment_type = serializers.ChoiceField(choices=["cash", "insurance"])
 
+    # Damage assessment fields (optional)
+    damage_type = serializers.CharField(
+        required=False, allow_blank=True, default="unknown"
+    )
+    damage_quantity = serializers.CharField(
+        required=False, allow_blank=True, default="unknown"
+    )
+
     location = QuoteLocationSerializer()
     insurance = QuoteInsuranceSerializer(required=False, allow_null=True)
     customer = QuoteCustomerSerializer()
@@ -73,14 +81,12 @@ class QuoteStatusResponseSerializer(serializers.Serializer):
     redirect_url = serializers.CharField(required=False)
 
 
-class LineItemSerializer(serializers.Serializer):
-    type = serializers.CharField()
-    description = serializers.CharField()
-    unit_price = serializers.DecimalField(
-        max_digits=8, decimal_places=2, required=False
-    )
-    quantity = serializers.IntegerField(required=False)
-    subtotal = serializers.DecimalField(max_digits=8, decimal_places=2)
+class LineItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        from quotes.models import QuoteLineItem
+
+        model = QuoteLineItem
+        fields = ["type", "description", "unit_price", "quantity", "subtotal"]
 
 
 class PricingSummarySerializer(serializers.Serializer):
@@ -95,8 +101,17 @@ class QuotePricingSerializer(serializers.Serializer):
     pricing_summary = PricingSummarySerializer(required=False)
 
 
+class CustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        from customers.models import Customer
+
+        model = Customer
+        fields = ["email", "phone", "first_name", "last_name"]
+
+
 class QuotePreviewSerializer(serializers.ModelSerializer):
     vehicle = serializers.DictField(source="vehicle_info")
+    customer = CustomerSerializer(read_only=True)
     glass = serializers.SerializerMethodField()
     service = serializers.SerializerMethodField()
     payment = serializers.SerializerMethodField()
@@ -108,6 +123,7 @@ class QuotePreviewSerializer(serializers.ModelSerializer):
         model = Quote
         fields = [
             "id",
+            "customer",
             "vehicle",
             "glass",
             "service",
@@ -123,7 +139,13 @@ class QuotePreviewSerializer(serializers.ModelSerializer):
     def get_glass(self, obj):
         # Reconstruct glass info. For now, just return the type.
         # Ideally, we would store the selected glass details in the quote.
-        return {"type": obj.glass_type, "display_name": obj.get_glass_type_display()}
+        return {
+            "type": obj.glass_type,
+            "display_name": obj.get_glass_type_display(),
+            "damage_type": obj.damage_type,
+            "damage_type_display": obj.get_damage_type_display(),
+            "damage_quantity": obj.damage_quantity,
+        }
 
     def get_service(self, obj):
         # Reconstruct service info from model fields

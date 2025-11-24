@@ -25,12 +25,9 @@ class VehicleService(BaseService):
         """
         Identify a vehicle by its VIN.
         """
-        if not validate_vin(vin):
-            raise InvalidVINError(f"Invalid VIN: {vin}")
-
         self.log_info(f"Identifying vehicle by VIN: {vin}")
 
-        # 1. Try Mock Data (if enabled)
+        # 1. Try Mock Data (if enabled) - skip VIN validation for mock
         if use_mock and getattr(settings, "USE_MOCK_VEHICLE_DATA", True):
             try:
                 vehicle = MockVehicleData.objects.get(vin=vin)
@@ -39,10 +36,17 @@ class VehicleService(BaseService):
             except MockVehicleData.DoesNotExist:
                 self.log_info(f"Vehicle not found in mock data: {vin}")
 
+        # Validate VIN format for real API calls
+        if not validate_vin(vin):
+            raise InvalidVINError(f"Invalid VIN: {vin}")
+
         # 2. Try AUTOBOLT API
         try:
             data = self.autobolt_client.decode_vin(vin)
             self.log_info(f"Found vehicle via AUTOBOLT: {vin}")
+            # Normalize glass_options to glass_parts for consistency
+            if "glass_options" in data and "glass_parts" not in data:
+                data["glass_parts"] = data.pop("glass_options")
             return data
         except AutoboltAPIError as e:
             self.log_error(f"AUTOBOLT API error for VIN {vin}: {str(e)}")
@@ -79,6 +83,9 @@ class VehicleService(BaseService):
         try:
             data = self.autobolt_client.lookup_plate(plate, state)
             self.log_info(f"Found vehicle via AUTOBOLT: {plate}")
+            # Normalize glass_options to glass_parts for consistency
+            if "glass_options" in data and "glass_parts" not in data:
+                data["glass_parts"] = data.pop("glass_options")
             return data
         except AutoboltAPIError as e:
             self.log_error(f"AUTOBOLT API error for plate {plate}: {str(e)}")

@@ -50,7 +50,7 @@ class PricingCalculator(BaseService):
 
         selected_part = None
         for part in glass_parts:
-            if part.get("type") == glass_type:
+            if part.get("type", "").upper() == glass_type.upper():
                 selected_part = part
                 break
 

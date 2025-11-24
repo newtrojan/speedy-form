@@ -35,6 +35,8 @@ def generate_quote_task(
     service_type,
     payment_type,
     customer_data,
+    damage_type="unknown",  # Optional damage assessment
+    damage_quantity="unknown",  # Optional damage assessment
     shop_id=None,  # Optional, logic might pick best shop
     service_address=None,
     insurance_data=None,
@@ -130,6 +132,8 @@ def generate_quote_task(
             vehicle_info=serialized_vehicle,
             postal_code=postal_code,
             glass_type=glass_type,
+            damage_type=damage_type,
+            damage_quantity=damage_quantity,
             service_type=service_type,
             service_address=service_address or {},
             distance_from_shop_miles=service_check.get("distance_miles"),
@@ -157,10 +161,19 @@ def generate_quote_task(
 
         logger.info(f"Quote {quote.id} created successfully.")
 
-        # Trigger email (optional, usually happens after validation
-        # or immediate if auto-approved)
-        # For now, let's just return the ID
-        send_quote_email.delay(quote.id)
+        # Send engagement email immediately to confirm receipt
+        send_quote_received_email.delay(quote.id)
+
+        # Check if shop has auto-approval enabled
+        if shop.auto_approve_quotes:
+            logger.info(
+                f"Auto-approval enabled for shop {shop.id}. Sending quote email."
+            )
+            # Transition quote to 'sent' state for auto-approved shops
+            quote.send_to_customer()
+            quote.save()
+            # Send the quote email with approval link
+            send_quote_email.delay(quote.id)
 
         return {
             "status": "completed",
@@ -179,9 +192,34 @@ def generate_quote_task(
 
 
 @shared_task
+def send_quote_received_email(quote_id):
+    """
+    Sends engagement email confirming quote request was received.
+    This is sent immediately after quote generation.
+    """
+    from core.services.email_service import EmailService
+
+    try:
+        quote = Quote.objects.get(id=quote_id)
+        email_service = EmailService()
+        email_service.send_quote_received(quote)
+
+        logger.info(f"Quote received email queued for quote {quote_id}")
+
+    except Quote.DoesNotExist:
+        logger.error(f"Quote {quote_id} not found for quote received email")
+    except Exception as e:
+        logger.error(f"Error queueing quote received email for {quote_id}: {str(e)}")
+
+
+@shared_task
 def send_quote_email(quote_id):
     """
     Sends the quote email to the customer using EmailService.
+    This includes the approval link and is sent after support validation
+    or auto-approval.
+    Note: EmailService now uses django-post-office which handles queueing
+    and retries automatically. This task just triggers the email creation.
     """
     from core.services.email_service import EmailService
 
@@ -190,10 +228,12 @@ def send_quote_email(quote_id):
         email_service = EmailService()
         email_service.send_quote(quote)
 
-        logger.info(f"Email sent for quote {quote_id}")
+        logger.info(f"Email queued for quote {quote_id}")
 
+    except Quote.DoesNotExist:
+        logger.error(f"Quote {quote_id} not found for email sending")
     except Exception as e:
-        logger.error(f"Error sending email for quote {quote_id}: {str(e)}")
+        logger.error(f"Error queueing email for quote {quote_id}: {str(e)}")
 
 
 @shared_task

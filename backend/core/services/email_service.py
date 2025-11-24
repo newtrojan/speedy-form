@@ -1,7 +1,7 @@
 import secrets
 import hashlib
 import logging
-from django.core.mail import send_mail
+from post_office import mail
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils import timezone
@@ -15,6 +15,51 @@ class EmailService(BaseService):
     """
     Service for handling email communications.
     """
+
+    def send_quote_received(self, quote: Quote) -> bool:
+        """
+        Sends an engagement email confirming quote request was received.
+        No approval link - just sets expectations.
+        """
+        try:
+            vehicle_desc = (
+                f"{quote.vehicle_info.get('year')} "
+                f"{quote.vehicle_info.get('make')} "
+                f"{quote.vehicle_info.get('model')}"
+            )
+
+            context = {
+                "quote": quote,
+                "vehicle_desc": vehicle_desc,
+                "customer_name": quote.customer.first_name,
+            }
+
+            html_message = render_to_string("emails/quote_received.html", context)
+            subject = f"We've Received Your Auto Glass Quote Request - {vehicle_desc}"
+
+            mail.send(
+                recipients=[quote.customer.email],
+                sender=settings.DEFAULT_FROM_EMAIL,
+                subject=subject,
+                message=(
+                    f"Thanks for your request! We're reviewing your quote "
+                    f"for {vehicle_desc} and will send you pricing shortly."
+                ),
+                html_message=html_message,
+                priority="now",
+            )
+
+            self.log_info(
+                f"Quote received email sent to {quote.customer.email} "
+                f"for quote {quote.id}"
+            )
+            return True
+
+        except Exception as e:
+            self.log_error(
+                f"Failed to send quote received email for {quote.id}: {str(e)}"
+            )
+            return False
 
     def send_quote(self, quote: Quote) -> bool:
         """
@@ -38,9 +83,9 @@ class EmailService(BaseService):
                 f"{quote.vehicle_info.get('make')} "
                 f"{quote.vehicle_info.get('model')}"
             )
-            # In production, this URL would come from settings
+            # Use frontend URL from settings
             approval_link = (
-                f"http://localhost:3000/quotes/approve/{quote.id}?token={token}"
+                f"{settings.FRONTEND_URL}/quotes/approve/{quote.id}?token={token}"
             )
 
             context = {
@@ -53,13 +98,13 @@ class EmailService(BaseService):
             html_message = render_to_string("emails/quote_email.html", context)
             subject = f"Your Auto Glass Quote - {vehicle_desc}"
 
-            send_mail(
+            mail.send(
+                recipients=[quote.customer.email],
+                sender=settings.DEFAULT_FROM_EMAIL,
                 subject=subject,
                 message=f"Please view your quote here: {approval_link}",  # Fallback
                 html_message=html_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[quote.customer.email],
-                fail_silently=False,
+                priority="now",
             )
 
             self.log_info(
@@ -91,13 +136,13 @@ class EmailService(BaseService):
             html_message = render_to_string("emails/rejection_email.html", context)
             subject = f"Update on Your Quote Request - {vehicle_desc}"
 
-            send_mail(
+            mail.send(
+                recipients=[quote.customer.email],
+                sender=settings.DEFAULT_FROM_EMAIL,
                 subject=subject,
                 message=f"Your quote request could not be processed. Reason: {reason}",
                 html_message=html_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[quote.customer.email],
-                fail_silently=False,
+                priority="now",
             )
 
             self.log_info(
@@ -119,7 +164,7 @@ class EmailService(BaseService):
                 f"{quote.vehicle_info.get('make')} "
                 f"{quote.vehicle_info.get('model')}"
             )
-            scheduling_link = "http://localhost:3000/schedule"  # Placeholder
+            scheduling_link = f"{settings.FRONTEND_URL}/schedule"
 
             context = {
                 "quote": quote,
@@ -132,15 +177,15 @@ class EmailService(BaseService):
             )
             subject = f"Quote Approved - Next Steps for your {vehicle_desc}"
 
-            send_mail(
+            mail.send(
+                recipients=[quote.customer.email],
+                sender=settings.DEFAULT_FROM_EMAIL,
                 subject=subject,
                 message=(
                     "Your quote has been approved! " "Please schedule your appointment."
                 ),
                 html_message=html_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[quote.customer.email],
-                fail_silently=False,
+                priority="now",
             )
 
             self.log_info(

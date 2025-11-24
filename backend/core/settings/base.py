@@ -40,6 +40,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "django_fsm",
     "drf_spectacular",
+    "post_office",
 ]
 
 LOCAL_APPS = [
@@ -131,6 +132,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = "static/"
+STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -157,8 +159,46 @@ REST_FRAMEWORK = {
     },
 }
 
-# CORS
-CORS_ALLOW_ALL_ORIGINS = True  # For development
+# CORS Configuration - Allow credentials for cookie-based auth
+CORS_ALLOW_ALL_ORIGINS = False  # Security: Explicit origins only
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS", default=["http://localhost:3333", "http://127.0.0.1:3333"]
+)
+CORS_ALLOW_CREDENTIALS = True  # Required for httpOnly cookies
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",  # CSRF token header
+    "x-requested-with",
+]
+
+# CSRF Configuration - Cookie-based protection
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_COOKIE_HTTPONLY = False  # Must be False so frontend can read it
+CSRF_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+CSRF_COOKIE_SAMESITE = "Lax"  # CSRF protection
+CSRF_COOKIE_PATH = "/"
+CSRF_USE_SESSIONS = False  # Use cookie-based CSRF
+CSRF_COOKIE_AGE = 31449600  # 1 year
+CSRF_TRUSTED_ORIGINS = env.list(
+    "CSRF_TRUSTED_ORIGINS", default=["http://localhost:3333", "http://127.0.0.1:3333"]
+)
+
+# Session Cookie Configuration
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+
+# Authentication Backends
+AUTHENTICATION_BACKENDS = [
+    "core.backends.EmailOrUsernameBackend",  # Try email/username first
+    "django.contrib.auth.backends.ModelBackend",  # Fallback to default
+]
 
 # Spectacular
 SPECTACULAR_SETTINGS = {
@@ -194,16 +234,35 @@ EMAIL_BACKEND = env(
 )
 EMAIL_HOST = env("EMAIL_HOST", default="mailhog")
 EMAIL_PORT = env.int("EMAIL_PORT", default=1025)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@autoglass.local")
+
+# Frontend URL for email links
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3333")
+
+# Django Post Office
+POST_OFFICE = {
+    "BACKENDS": {
+        "default": "django.core.mail.backends.smtp.EmailBackend",
+    },
+    "DEFAULT_PRIORITY": "now",  # Send immediately, but with retry capability
+    "CELERY_ENABLED": True,  # Use Celery for sending emails
+    "MAX_RETRIES": 3,  # Retry failed emails up to 3 times
+    "RETRY_INTERVAL": timedelta(minutes=5),  # Wait 5 minutes between retries
+    "LOG_LEVEL": 2,  # 0 = None, 1 = Failed, 2 = All
+}
 
 # Logging
 LOG_LEVEL = env("LOG_LEVEL", default="INFO")
+
+# Use verbose formatter for now (JSON logger causing issues in Celery)
+DEFAULT_FORMATTER = "verbose"
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "json": {
-            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "()": "pythonjsonlogger.json.JsonFormatter",
             "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
         },
         "verbose": {
@@ -214,7 +273,7 @@ LOGGING = {
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "json",
+            "formatter": DEFAULT_FORMATTER,
         },
     },
     "root": {

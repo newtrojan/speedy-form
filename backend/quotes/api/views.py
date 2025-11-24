@@ -32,11 +32,33 @@ class GenerateQuoteView(APIView):
         serializer = QuoteGenerationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Generate a unique task ID (or let Celery do it, but we might want to track it)
-        # Actually, let's just use Celery's task ID.
+        data = serializer.validated_data
 
-        # Dispatch task
-        task = generate_quote_task.delay(serializer.validated_data)
+        # Transform nested serializer structure to match task signature
+        task_kwargs = {
+            "vin": data["vin"],
+            "glass_type": data["glass_type"],
+            "manufacturer": data.get("manufacturer", "nags"),
+            "postal_code": data["location"]["postal_code"],
+            "service_type": data["service_type"],
+            "payment_type": data["payment_type"],
+            "customer_data": data["customer"],
+            "damage_type": data.get("damage_type", "unknown"),
+            "damage_quantity": data.get("damage_quantity", "unknown"),
+            "service_address": (
+                {
+                    "street": data["location"].get("street_address"),
+                    "city": data["location"].get("city"),
+                    "state": data["location"].get("state"),
+                }
+                if data["service_type"] == "mobile"
+                else None
+            ),
+            "insurance_data": data.get("insurance"),
+        }
+
+        # Dispatch task with unpacked kwargs
+        task = generate_quote_task.delay(**task_kwargs)
 
         return Response(
             {
@@ -74,13 +96,28 @@ class QuoteStatusView(APIView):
         elif result.state == "SUCCESS":
             # Task result should contain the quote_id or error
             task_result = result.result
-            if isinstance(task_result, dict) and "quote_id" in task_result:
-                response_data["status"] = "completed"
-                response_data["quote_id"] = task_result["quote_id"]
-                response_data["message"] = "Quote generated successfully."
-                # response_data["redirect_url"] = ...
+            if isinstance(task_result, dict):
+                if "quote_id" in task_result:
+                    # Successful quote generation
+                    response_data["status"] = "completed"
+                    response_data["quote_id"] = task_result["quote_id"]
+                    response_data["message"] = "Quote generated successfully."
+                    # response_data["redirect_url"] = ...
+                elif task_result.get("status") == "failed":
+                    # Task completed but failed (e.g., unserviceable area)
+                    response_data["status"] = "failed"
+                    response_data["error"] = task_result.get(
+                        "error", "Quote generation failed"
+                    )
+                    response_data["message"] = task_result.get(
+                        "details"
+                    ) or task_result.get("error")
+                else:
+                    # Unexpected format
+                    response_data["status"] = "failed"
+                    response_data["error"] = "Invalid task result format"
             else:
-                # Should not happen if task succeeds but returns unexpected format
+                # Task returned non-dict result
                 response_data["status"] = "failed"
                 response_data["error"] = "Invalid task result format"
         elif result.state == "FAILURE":

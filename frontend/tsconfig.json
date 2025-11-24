@@ -1,0 +1,77 @@
+{
+  "compilerOptions": {
+    /* Environment & Targeting */
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "useDefineForClassFields": true,
+
+    /* Bundler Mode (Vite-specific) */
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true, // ⚠️ SECURITY: Disable in CI to audit node_modules types
+
+    /* React 19 JSX Transform */
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+
+    /* ESM Strictness */
+    "verbatimModuleSyntax": true, // Prevents import ambiguity; blocks CJS re-export attacks
+
+    /* Path Aliases - REQUIRES Vite Config */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    /* Security & Type Safety (Highest Priority) */
+    "strict": true,
+    "exactOptionalPropertyTypes": true, // Prevents undefined injection via optional props
+    "noUncheckedIndexedAccess": true, // Blocks prototype pollution & undefined bypass
+    "noPropertyAccessFromIndexSignature": true, // Stops property chain spoofing
+    "noImplicitOverride": true, // Prevents accidental method override in class hierarchies
+    "noImplicitReturns": true, // Eliminates undefined code path vulnerabilities
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true // Mitigates case-squatting attacks
+
+    /* Migration Support (Remove when pure TS) */
+    //"allowJs": true, // ⚠️ SECURITY: Escape hatch; disable once JS files are migrated
+    //"esModuleInterop": true // For legacy CJS deps; keep if using popular libraries
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+
+  /* 
+    ⚠️ CRITICAL: Add this to vite.config.ts:
+    
+    import { defineConfig } from 'vite'
+    import react from '@vitejs/plugin-react'
+    import path from 'node:path'
+    
+    export default defineConfig({
+      plugins: [react()],
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, './src'),
+        },
+      },
+    })
+  */
+
+  /* 
+    🛡️ CI SECURITY AUDIT:
+    Create tsconfig.ci.json:
+    {
+      "extends": "./tsconfig.json",
+      "compilerOptions": {
+        "skipLibCheck": false
+      }
+    }
+    Run: tsc --noEmit -p tsconfig.ci.json
+  */
+}

@@ -21,6 +21,12 @@ class Shop(models.Model):
 
     is_accepting_jobs = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
+    auto_approve_quotes = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Automatically approve and send quotes to customers without manual review"
+        ),
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

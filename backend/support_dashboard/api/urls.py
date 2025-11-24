@@ -1,6 +1,7 @@
 """
 URL configuration for support dashboard API.
 """
+
 from django.urls import path
 from support_dashboard.api.views import (
     QuoteQueueView,

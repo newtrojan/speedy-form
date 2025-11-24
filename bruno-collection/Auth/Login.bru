@@ -19,7 +19,8 @@ body:json {
 
 script:post-response {
   if (res.status === 200) {
+    // Only access_token is in response body (stored in memory by frontend)
     bru.setVar("access_token", res.body.access_token);
-    bru.setVar("refresh_token", res.body.refresh_token);
+    // refresh_token is now in httpOnly cookie (auto-managed by Bruno)
   }
 }

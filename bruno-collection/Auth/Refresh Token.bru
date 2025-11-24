@@ -6,18 +6,17 @@ meta {
 
 post {
   url: {{base_url}}/api/v1/auth/refresh/
-  body: json
+  body: none
   auth: none
-}
-
-body:json {
-  {
-    "refresh": "{{refresh_token}}"
-  }
 }
 
 script:post-response {
   if (res.status === 200) {
-    bru.setVar("access_token", res.body.access);
+    bru.setVar("access_token", res.body.access_token);
   }
+}
+
+docs {
+  Refresh token is read from httpOnly cookie automatically.
+  No request body needed - backend reads from cookies.
 }

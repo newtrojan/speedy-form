@@ -65,9 +65,11 @@ class LoginSerializer(serializers.Serializer):
 
 class TokenResponseSerializer(serializers.Serializer):
     """
-    Serializer for token response format.
+    Serializer for token response format (httpOnly cookie security).
+
+    Note: refresh_token is NOT included - it's set as httpOnly cookie.
+    Only access_token is returned in JSON response for memory storage.
     """
 
     access_token = serializers.CharField()
-    refresh_token = serializers.CharField()
     user = UserSerializer()
