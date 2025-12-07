@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 db.sqlite3
 .DS_Store
 node_modules/
@@ -10,3 +12,25 @@ build/
 .vscode/
 venv/
 *.log
+
+# SQL dumps - may contain sensitive data
+*.sql
+
+# Screenshots and images
+*.png
+*.jpg
+*.jpeg
+Screenshot*
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Secrets / credentials
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Local dev files
+*.local

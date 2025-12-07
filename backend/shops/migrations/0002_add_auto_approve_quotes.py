@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name="auto_approve_quotes",
             field=models.BooleanField(
                 default=False,
-                help_text="Automatically approve and send quotes to customers without manual review",
+                help_text="Automatically approve and send quotes without review",
             ),
         ),
     ]

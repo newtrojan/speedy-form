@@ -1,76 +1,70 @@
+import logging
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from drf_spectacular.utils import extend_schema
 
-from vehicles.services.vehicle_service import VehicleService
+from vehicles.services import VehicleLookupService, VehicleLookupError
 from vehicles.api.serializers import (
     VehicleIdentificationRequestSerializer,
-    VehicleResponseSerializer,
+    VehicleLookupResponseSerializer,
 )
-from core.exceptions import VehicleNotFoundException
+
+logger = logging.getLogger(__name__)
 
 
 class IdentifyVehicleView(APIView):
     """
     Identify vehicle by VIN or license plate.
+
+    Uses VehicleLookupService which orchestrates:
+    - AUTOBOLT API (primary, paid, cached)
+    - NHTSA API (fallback, free)
+    - NAGS database (backup, read-only)
     """
 
     permission_classes = []  # AllowAny
 
     @extend_schema(
         request=VehicleIdentificationRequestSerializer,
-        responses={200: VehicleResponseSerializer},
+        responses={200: VehicleLookupResponseSerializer},
         summary="Identify Vehicle",
         description=(
             "Identify a vehicle by VIN or License Plate + State "
-            "to get details and glass options."
+            "to get details and glass part options."
         ),
     )
     def post(self, request):
         serializer = VehicleIdentificationRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        service = VehicleService()
         vin = serializer.validated_data.get("vin")
-        # license_plate = serializer.validated_data.get("license_plate")
-        # state = serializer.validated_data.get("state")
+        license_plate = serializer.validated_data.get("license_plate")
+        state = serializer.validated_data.get("state")
 
         try:
+            service = VehicleLookupService()
+
             if vin:
-                data = service.identify_by_vin(vin)
+                result = service.lookup_by_vin(vin)
+            elif license_plate and state:
+                result = service.lookup_by_plate(license_plate, state)
             else:
-                # TODO: Implement identify_by_plate in VehicleService
-                # For now, mock or raise not implemented
-                # data = service.identify_by_plate(license_plate, state)
                 return Response(
-                    {"error": "License plate lookup not implemented yet"},
-                    status=status.HTTP_501_NOT_IMPLEMENTED,
+                    {"error": "Must provide VIN or license plate + state"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Transform data to match serializer structure if needed
-            # The service returns a dict that roughly matches,
-            # but let's ensure structure
-            response_data = {
-                "vehicle": {
-                    "vin": data.get("vin"),
-                    "year": data.get("year"),
-                    "make": data.get("make"),
-                    "model": data.get("model"),
-                    "body_type": data.get("body_style"),
-                },
-                "glass_options": data.get("glass_parts", {}),
-            }
+            # Return the result as dict
+            return Response(result.to_dict(), status=status.HTTP_200_OK)
 
-            return Response(response_data, status=status.HTTP_200_OK)
-
-        except VehicleNotFoundException as e:
-            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        except VehicleLookupError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except Exception:
-            # Log the error for debugging
-            import logging
-
-            logger = logging.getLogger(__name__)
             logger.exception("Error identifying vehicle")
             return Response(
                 {"error": "An unexpected error occurred"},

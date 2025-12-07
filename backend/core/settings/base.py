@@ -95,6 +95,29 @@ DATABASES = {
     "default": env.db(),
 }
 
+# NAGS MySQL Database (read-only, external)
+# Only configure if environment variables are present
+NAGS_DB_HOST = env("NAGS_DB_HOST", default=None)
+if NAGS_DB_HOST:
+    DATABASES["nags"] = {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("NAGS_DB_NAME", default="nags"),
+        "USER": env("NAGS_DB_USER"),
+        "PASSWORD": env("NAGS_DB_PASSWORD"),
+        "HOST": NAGS_DB_HOST,
+        "PORT": env("NAGS_DB_PORT", default="3306"),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+            "read_default_file": env("NAGS_DB_CONFIG_FILE", default=""),
+        },
+    }
+    # Remove empty read_default_file option
+    if not DATABASES["nags"]["OPTIONS"]["read_default_file"]:
+        del DATABASES["nags"]["OPTIONS"]["read_default_file"]
+
+# Database router for NAGS models (read-only)
+DATABASE_ROUTERS = ["vehicles.routers.NAGSRouter"]
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

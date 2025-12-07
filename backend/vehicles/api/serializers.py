@@ -2,6 +2,8 @@ from rest_framework import serializers
 
 
 class VehicleIdentificationRequestSerializer(serializers.Serializer):
+    """Request serializer for vehicle identification."""
+
     vin = serializers.CharField(required=False, max_length=17, min_length=17)
     license_plate = serializers.CharField(required=False, max_length=20)
     state = serializers.CharField(required=False, max_length=2)
@@ -16,36 +18,48 @@ class VehicleIdentificationRequestSerializer(serializers.Serializer):
                 "Must provide either VIN or both License Plate and State."
             )
 
-        if vin:
-            # Basic VIN validation (length is handled by field, but could add regex)
-            pass
-
         return data
 
 
-class ManufacturerOptionSerializer(serializers.Serializer):
-    code = serializers.CharField()
-    name = serializers.CharField()
-    part_number = serializers.CharField()
-    list_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+class GlassPartSerializer(serializers.Serializer):
+    """Serializer for glass part data."""
+
+    nags_part_number = serializers.CharField()
+    full_part_number = serializers.CharField(allow_null=True)
+    prefix_cd = serializers.CharField()
+    nags_list_price = serializers.CharField(allow_null=True)  # Decimal as string
+    calibration_type = serializers.CharField(allow_null=True)
+    calibration_required = serializers.BooleanField()
     features = serializers.ListField(child=serializers.CharField())
-    complexity = serializers.CharField(required=False)
+    tube_qty = serializers.CharField()  # Decimal as string
+    source = serializers.CharField()
 
 
-class GlassOptionSerializer(serializers.Serializer):
-    type = serializers.CharField()
-    display_name = serializers.CharField()
-    manufacturers = ManufacturerOptionSerializer(many=True)
+class VehicleLookupResponseSerializer(serializers.Serializer):
+    """Response serializer for vehicle lookup."""
 
+    # Source tracking
+    source = serializers.ChoiceField(
+        choices=["autobolt", "nhtsa+nags", "nags", "cache", "manual"]
+    )
 
-class VehicleDetailsSerializer(serializers.Serializer):
+    # Vehicle info
     vin = serializers.CharField()
     year = serializers.IntegerField()
     make = serializers.CharField()
     model = serializers.CharField()
-    style = serializers.CharField(required=False)
+    body_style = serializers.CharField(allow_null=True)
+    trim = serializers.CharField(allow_null=True)
 
+    # Parts
+    parts = GlassPartSerializer(many=True)
 
-class VehicleResponseSerializer(serializers.Serializer):
-    vehicle = VehicleDetailsSerializer()
-    glass_options = GlassOptionSerializer(many=True)
+    # Flags
+    needs_part_selection = serializers.BooleanField()
+    needs_calibration_review = serializers.BooleanField()
+    needs_manual_review = serializers.BooleanField()
+    needs_review = serializers.BooleanField()
+
+    # Confidence
+    confidence = serializers.ChoiceField(choices=["high", "medium", "low"])
+    review_reason = serializers.CharField(allow_null=True)

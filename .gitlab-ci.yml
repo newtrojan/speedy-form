@@ -1,0 +1,78 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  # Define registry image names
+  BACKEND_IMAGE: $CI_REGISTRY_IMAGE/backend
+  FRONTEND_IMAGE: $CI_REGISTRY_IMAGE/frontend
+  CELERY_WORKER_IMAGE: $CI_REGISTRY_IMAGE/backend # Reuses backend image
+  CELERY_BEAT_IMAGE: $CI_REGISTRY_IMAGE/backend   # Reuses backend image
+
+# Login to GitLab Container Registry
+before_script:
+  - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+
+# Build Backend Image
+build_backend:
+  stage: build
+  image: docker:stable
+  services:
+    - docker:dind
+  script:
+    - echo "Building Backend Image..."
+    - docker build -t $BACKEND_IMAGE:$CI_COMMIT_SHA -t $BACKEND_IMAGE:latest ./backend
+    - docker push $BACKEND_IMAGE:$CI_COMMIT_SHA
+    - docker push $BACKEND_IMAGE:latest
+  only:
+    - main
+    - develop
+
+# Build Frontend Image
+build_frontend:
+  stage: build
+  image: docker:stable
+  services:
+    - docker:dind
+  script:
+    - echo "Building Frontend Image..."
+    # Pass build-time variables
+    - docker build 
+      --build-arg VITE_API_BASE_URL=$VITE_API_BASE_URL 
+      --build-arg VITE_APP_ENV=$VITE_APP_ENV 
+      -t $FRONTEND_IMAGE:$CI_COMMIT_SHA 
+      -t $FRONTEND_IMAGE:latest ./frontend
+    - docker push $FRONTEND_IMAGE:$CI_COMMIT_SHA
+    - docker push $FRONTEND_IMAGE:latest
+  only:
+    - main
+    - develop
+
+# Deploy to Dokploy (Test Environment)
+deploy_test:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: test
+    url: $TEST_CORS_ALLOWED_ORIGINS
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - echo "Deploying to Test Environment on Dokploy..."
+    # Copy docker-compose.yml to server
+    - scp docker-compose.yml root@$DOKPLOY_HOST:/root/speedy-form/docker-compose.yml
+    # SSH into server and update containers
+    - ssh root@$DOKPLOY_HOST "cd /root/speedy-form && \
+      echo 'Pulling latest images...' && \
+      docker pull $BACKEND_IMAGE:latest && \
+      docker pull $FRONTEND_IMAGE:latest && \
+      echo 'Restarting services...' && \
+      docker-compose up -d --force-recreate"
+  only:
+    - develop

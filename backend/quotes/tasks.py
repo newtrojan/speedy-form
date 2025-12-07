@@ -9,7 +9,8 @@ from quotes.models import Quote, QuoteLineItem
 from customers.models import Customer
 from shops.models import Shop
 from shops.services.serviceability import ServiceabilityService
-from pricing.services.calculator import PricingCalculator
+from pricing.services import PricingService, PricingError
+from vehicles.services import VehicleLookupService, VehicleLookupError
 from core.exceptions import ServiceException
 
 logger = logging.getLogger(__name__)
@@ -35,31 +36,33 @@ def generate_quote_task(
     service_type,
     payment_type,
     customer_data,
-    damage_type="unknown",  # Optional damage assessment
-    damage_quantity="unknown",  # Optional damage assessment
-    shop_id=None,  # Optional, logic might pick best shop
+    damage_type="unknown",
+    damage_quantity="unknown",
+    shop_id=None,
     service_address=None,
     insurance_data=None,
-    use_mock=True,
 ):
     """
     Async task to generate a quote.
+
+    Flow:
+    1. Check serviceability and find shop
+    2. Lookup vehicle and parts via VehicleLookupService
+    3. Calculate pricing via PricingService
+    4. Create customer and quote records
+    5. Send confirmation email
+    6. Auto-approve if shop allows
     """
     logger.info(f"Starting quote generation for VIN {vin}")
 
     try:
         # Initialize Services
-        # VehicleService is used internally by PricingCalculator if needed,
-        # or we could use it here if we wanted to validate VIN explicitly first.
         serviceability_service = ServiceabilityService()
-        pricing_calculator = PricingCalculator()
+        vehicle_lookup_service = VehicleLookupService()
+        pricing_service = PricingService()
 
         # 1. Validate Serviceability
-        # If shop_id is provided, check that specific shop.
-        # If not, check general serviceability and pick a shop.
-
         if service_type == "mobile":
-            # Extract address parts from service_address dict
             street = service_address.get("street") if service_address else None
             city = service_address.get("city") if service_address else None
             state = service_address.get("state") if service_address else None
@@ -86,23 +89,30 @@ def generate_quote_task(
             else:
                 return {"status": "failed", "error": "No shop found."}
 
-        # 2. Calculate Pricing
-        # This also fetches vehicle data internally
-        quote_data = pricing_calculator.calculate_quote(
-            vin=vin,
-            glass_type=glass_type,
-            shop_id=shop_id,
-            service_type=service_type,
-            distance_miles=service_check.get("distance_miles"),
-            payment_type=payment_type,
-            manufacturer=manufacturer,
-            use_mock=use_mock,
-        )
+        shop = Shop.objects.get(id=shop_id)
 
-        if not quote_data:
-            return {"status": "failed", "error": "Failed to calculate quote."}
+        # 2. Lookup Vehicle and Parts
+        try:
+            lookup_result = vehicle_lookup_service.lookup_by_vin(
+                vin, glass_type=glass_type
+            )
+        except VehicleLookupError as e:
+            logger.error(f"Vehicle lookup failed for {vin}: {e}")
+            return {"status": "failed", "error": f"Vehicle lookup failed: {e}"}
 
-        # 3. Create/Get Customer
+        # 3. Calculate Pricing
+        try:
+            quote_pricing = pricing_service.calculate_quote(
+                lookup_result=lookup_result,
+                shop=shop,
+                service_type=service_type,
+                distance_miles=service_check.get("distance_miles"),
+            )
+        except PricingError as e:
+            logger.error(f"Pricing calculation failed: {e}")
+            return {"status": "failed", "error": f"Pricing failed: {e}"}
+
+        # 4. Create/Get Customer
         customer, created = Customer.objects.get_or_create(
             email=customer_data.get("email"),
             defaults={
@@ -112,24 +122,17 @@ def generate_quote_task(
             },
         )
 
-        # 4. Create Quote Record
-        shop = Shop.objects.get(id=shop_id)
-        vehicle_info = quote_data.get("vehicle")
-        pricing_breakdown = quote_data.get("pricing_breakdown")
+        # 5. Create Quote Record
+        pricing_data = quote_pricing.to_dict()
 
-        if not pricing_breakdown:
-            return {"status": "failed", "error": "Pricing breakdown missing."}
-
-        # Serialize for JSON fields
-        serialized_pricing = serialize_decimals(pricing_breakdown)
-        serialized_fees = serialize_decimals(pricing_breakdown.get("fees"))
-        serialized_vehicle = serialize_decimals(vehicle_info)
+        # Determine initial state based on review flags
+        initial_state = "pending_validation" if quote_pricing.needs_review else "draft"
 
         quote = Quote.objects.create(
             customer=customer,
             shop=shop,
             vin=vin,
-            vehicle_info=serialized_vehicle,
+            vehicle_info=pricing_data["vehicle"],
             postal_code=postal_code,
             glass_type=glass_type,
             damage_type=damage_type,
@@ -138,18 +141,23 @@ def generate_quote_task(
             service_address=service_address or {},
             distance_from_shop_miles=service_check.get("distance_miles"),
             payment_type=payment_type,
-            pricing_details=serialized_pricing,
-            part_cost=pricing_breakdown.get("part_cost"),
-            labor_cost=pricing_breakdown.get("labor_cost"),
-            fees=serialized_fees,
-            total_price=pricing_breakdown.get("total"),
-            state="pending_validation",  # Initial state
+            pricing_details=pricing_data["pricing"],
+            part_cost=quote_pricing.glass_cost,
+            labor_cost=quote_pricing.labor_cost,
+            fees=serialize_decimals(
+                {
+                    "kit_fee": quote_pricing.kit_fee,
+                    "calibration_fee": quote_pricing.calibration_fee,
+                    "mobile_fee": quote_pricing.mobile_fee,
+                }
+            ),
+            total_price=quote_pricing.total,
+            state=initial_state,
             expires_at=timezone.now() + timedelta(days=7),
         )
 
         # Create Line Items
-        line_items = quote_data.get("line_items", [])
-        for item in line_items:
+        for item in quote_pricing.line_items:
             QuoteLineItem.objects.create(
                 quote=quote,
                 type=item.get("type"),
@@ -164,30 +172,31 @@ def generate_quote_task(
         # Send engagement email immediately to confirm receipt
         send_quote_received_email.delay(quote.id)
 
-        # Check if shop has auto-approval enabled
-        if shop.auto_approve_quotes:
+        # Check if shop has auto-approval enabled AND quote doesn't need review
+        if shop.auto_approve_quotes and not quote_pricing.needs_review:
             logger.info(
                 f"Auto-approval enabled for shop {shop.id}. Sending quote email."
             )
-            # Transition quote to 'sent' state for auto-approved shops
             quote.send_to_customer()
             quote.save()
-            # Send the quote email with approval link
             send_quote_email.delay(quote.id)
 
         return {
             "status": "completed",
             "quote_id": str(quote.id),
             "total_price": str(quote.total_price),
+            "needs_review": quote_pricing.needs_review,
         }
 
     except ServiceException as e:
         logger.error(f"Service error generating quote: {str(e)}")
         return {"status": "failed", "error": str(e)}
+    except NotImplementedError as e:
+        # PricingService not yet implemented
+        logger.error(f"Not implemented: {str(e)}")
+        return {"status": "failed", "error": str(e)}
     except Exception as e:
         logger.error(f"Unexpected error generating quote: {str(e)}", exc_info=True)
-        # Retry on transient errors if needed
-        # self.retry(exc=e)
         return {"status": "failed", "error": "An unexpected error occurred."}
 
 
@@ -244,7 +253,6 @@ def expire_old_quotes():
     cutoff = timezone.now()
 
     # Find quotes that are past expiration and not already in a terminal state
-    # Assuming 'expired', 'converted', 'rejected' are terminal
     expired_quotes = Quote.objects.filter(expires_at__lt=cutoff).exclude(
         state__in=["expired", "converted", "rejected", "customer_approved"]
     )
@@ -252,12 +260,8 @@ def expire_old_quotes():
     count = expired_quotes.count()
     if count > 0:
         logger.info(f"Expiring {count} old quotes.")
-        # Bulk update doesn't trigger signals/FSM transitions usually,
-        # so iterating might be safer for FSM consistency, or use bulk
-        # update if just state field.
-        # For FSM, we should ideally call the transition method.
         for quote in expired_quotes:
-            quote.state = "expired"  # Or call transition method
+            quote.state = "expired"
             quote.save()
 
     return f"Expired {count} quotes."

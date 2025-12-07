@@ -46,13 +46,13 @@
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 
-  /* 
+  /*
     ⚠️ CRITICAL: Add this to vite.config.ts:
-    
+
     import { defineConfig } from 'vite'
     import react from '@vitejs/plugin-react'
     import path from 'node:path'
-    
+
     export default defineConfig({
       plugins: [react()],
       resolve: {
@@ -63,7 +63,7 @@
     })
   */
 
-  /* 
+  /*
     🛡️ CI SECURITY AUDIT:
     Create tsconfig.ci.json:
     {
