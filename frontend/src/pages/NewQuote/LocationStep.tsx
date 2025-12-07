@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { useQuoteForm } from '@/context/QuoteFormContext';
-import { Loader2, MapPin, Store } from 'lucide-react';
-import type { ServiceType } from '@/types/api';
+import { useShopsNearby } from '@/hooks/useQuotes';
+import { Loader2, MapPin, Store, Check, Truck } from 'lucide-react';
+import type { ServiceType, ShopNearby } from '@/types/api';
 
 export function LocationStep() {
   const { formData, updateFormData, setCurrentStep } = useQuoteForm();
@@ -16,8 +17,26 @@ export function LocationStep() {
   const [serviceType, setServiceType] = useState<ServiceType | null>(
     formData.serviceType || null
   );
-  const [loading, setLoading] = useState(false);
+  const [selectedShop, setSelectedShop] = useState<ShopNearby | null>(
+    formData.selectedShop || null
+  );
   const [error, setError] = useState('');
+
+  // Fetch shops when postal code is valid (5+ chars)
+  const { data: shopsData, isLoading: shopsLoading, error: shopsError } = useShopsNearby(postalCode);
+
+  // Filter shops based on service type
+  const availableShops = shopsData?.shops?.filter((shop) => {
+    if (serviceType === 'mobile') {
+      return shop.offers_mobile_service;
+    }
+    return true; // All shops available for in-store
+  }) || [];
+
+  // Reset shop selection when service type changes
+  useEffect(() => {
+    setSelectedShop(null);
+  }, [serviceType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +52,11 @@ export function LocationStep() {
       return;
     }
 
+    if (!selectedShop) {
+      setError('Please select a shop');
+      return;
+    }
+
     // Validate address fields for mobile service
     if (serviceType === 'mobile') {
       if (!streetAddress || !city || !state) {
@@ -41,30 +65,40 @@ export function LocationStep() {
       }
     }
 
-    setLoading(true);
-    // Simulate API call to check service availability
-    setTimeout(() => {
-      setLoading(false);
-      updateFormData({
-        postalCode,
-        ...(serviceType === 'mobile' && streetAddress && { streetAddress }),
-        ...(serviceType === 'mobile' && city && { city }),
-        ...(serviceType === 'mobile' && state && { state }),
-        serviceType
-      });
-      setCurrentStep(3);
-    }, 1000);
+    updateFormData({
+      postalCode,
+      ...(serviceType === 'mobile' && streetAddress && { streetAddress }),
+      ...(serviceType === 'mobile' && city && { city }),
+      ...(serviceType === 'mobile' && state && { state }),
+      serviceType,
+      selectedShop,
+      selectedShopId: selectedShop.id,
+      distanceMiles: selectedShop.distance_miles,
+    });
+    setCurrentStep(3);
   };
 
   const handleBack = () => {
     setCurrentStep(1);
   };
 
+  const formatDistance = (miles: number) => {
+    if (miles < 1) {
+      return `${Math.round(miles * 10) / 10} mi`;
+    }
+    return `${Math.round(miles)} mi`;
+  };
+
+  const formatMobileFee = (fee: number | null) => {
+    if (fee === null || fee === 0) return 'Free';
+    return `+$${fee.toFixed(0)}`;
+  };
+
   return (
     <Card className="p-8">
       <h2 className="text-3xl font-bold text-gray-900 mb-2">Where do you need service?</h2>
       <p className="text-gray-600 mb-8">
-        Enter your ZIP or postal code and select how you'd like to receive service.
+        Enter your ZIP code and select how you'd like to receive service.
       </p>
 
       <form onSubmit={handleSubmit}>
@@ -79,6 +113,7 @@ export function LocationStep() {
               value={postalCode}
               onChange={(e) => {
                 setPostalCode(e.target.value);
+                setSelectedShop(null);
                 setError('');
               }}
               placeholder="Enter ZIP or postal code"
@@ -209,6 +244,83 @@ export function LocationStep() {
             </div>
           )}
 
+          {/* Shop Selection */}
+          {postalCode.length >= 5 && serviceType && (
+            <div className="space-y-4">
+              <Label className="text-base font-medium block">
+                Select a Shop {serviceType === 'mobile' ? '(Mobile Service Provider)' : ''}
+              </Label>
+
+              {shopsLoading && (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#DC2626]" />
+                  <span className="ml-2 text-gray-600">Finding nearby shops...</span>
+                </div>
+              )}
+
+              {shopsError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700">Failed to load nearby shops. Please try again.</p>
+                </div>
+              )}
+
+              {!shopsLoading && !shopsError && availableShops.length === 0 && (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-800">
+                    {serviceType === 'mobile'
+                      ? 'No mobile service available in your area. Please try in-store service.'
+                      : 'No shops found in your area. Please check your postal code.'}
+                  </p>
+                </div>
+              )}
+
+              {!shopsLoading && availableShops.length > 0 && (
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {availableShops.map((shop) => (
+                    <button
+                      key={shop.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedShop(shop);
+                        setError('');
+                      }}
+                      className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
+                        selectedShop?.id === shop.id
+                          ? 'border-[#DC2626] bg-red-50'
+                          : 'border-gray-200 hover:border-[#DC2626] hover:bg-red-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-gray-900">{shop.name}</h4>
+                            {selectedShop?.id === shop.id && (
+                              <Check className="h-5 w-5 text-[#DC2626]" />
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {shop.address}, {shop.city}, {shop.state} {shop.postal_code}
+                          </p>
+                          <div className="flex items-center gap-4 mt-2">
+                            <span className="text-sm text-gray-500">
+                              {formatDistance(shop.distance_miles)} away
+                            </span>
+                            {serviceType === 'mobile' && shop.offers_mobile_service && (
+                              <span className="flex items-center gap-1 text-sm text-green-700">
+                                <Truck className="h-4 w-4" />
+                                Mobile {formatMobileFee(shop.mobile_fee)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {error && <p className="text-[#DC2626] text-sm">{error}</p>}
 
           <div className="flex gap-4 pt-4">
@@ -223,16 +335,9 @@ export function LocationStep() {
             <Button
               type="submit"
               className="flex-1 h-14 text-lg font-semibold bg-[#DC2626] hover:bg-[#B91C1C]"
-              disabled={loading || postalCode.length < 5 || !serviceType}
+              disabled={shopsLoading || postalCode.length < 5 || !serviceType || !selectedShop}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Checking...
-                </>
-              ) : (
-                'Continue'
-              )}
+              Continue
             </Button>
           </div>
         </div>

@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as quotesApi from '@/api/quotes';
+import type { IdentifyVehicleParams } from '@/api/quotes';
 import type { QuoteGenerationRequest } from '@/types/api';
 
-// Vehicle identification
+// Vehicle identification - supports VIN or license plate
 export function useIdentifyVehicle() {
   return useMutation({
-    mutationFn: (vin: string) => quotesApi.identifyVehicle(vin),
+    mutationFn: (params: IdentifyVehicleParams) =>
+      quotesApi.identifyVehicle(params),
+  });
+}
+
+// Shops nearby - query with postal code
+export function useShopsNearby(postalCode: string) {
+  return useQuery({
+    queryKey: ['shops', 'nearby', postalCode],
+    queryFn: () => quotesApi.getShopsNearby(postalCode),
+    enabled: postalCode.length >= 5, // Only fetch when postal code is valid
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }
 

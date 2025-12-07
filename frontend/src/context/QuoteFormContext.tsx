@@ -1,37 +1,56 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import type {
   VehicleInfo,
+  VehicleLookupResult,
+  GlassPart,
   GlassType,
   ServiceType,
   PaymentType,
   DamageType,
   DamageQuantity,
+  ServiceIntent,
+  ChipCount,
+  ShopNearby,
 } from '@/types/api';
 
 export interface QuoteFormData {
-  // Step 1: Vehicle
-  vin?: string;
-  vehicle?: VehicleInfo;
+  // Phase 2: Service Intent (Step 1)
+  serviceIntent?: ServiceIntent;
 
-  // Step 2: Location & Service
+  // Step 2: Location & Service + Shop Selection
   serviceType?: ServiceType;
   postalCode?: string;
   streetAddress?: string;
   city?: string;
   state?: string;
+  selectedShop?: ShopNearby;
+  selectedShopId?: number;
+  distanceMiles?: number;
 
-  // Step 3: Glass Type & Damage
+  // Step 3: Vehicle (for replacement only)
+  identificationMethod?: 'plate' | 'vin' | 'manual';
+  vin?: string;
+  licensePlate?: string;
+  plateState?: string;
+  vehicle?: VehicleInfo;
+  // Full lookup result with parts (for passing to quote generation)
+  vehicleLookupResult?: VehicleLookupResult;
+  // Selected part (auto-selected if only one, or user-selected if multiple)
+  selectedPart?: GlassPart;
+
+  // Step 4: Glass Type & Damage (or chip count for chip_repair)
   glassType?: GlassType;
   damageType?: DamageType;
   damageQuantity?: DamageQuantity;
+  chipCount?: ChipCount;
 
-  // Step 4: Payment
+  // Step 5: Payment
   paymentType?: PaymentType;
   insuranceProviderId?: number;
   claimNumber?: string;
   deductible?: number;
 
-  // Step 5: Contact
+  // Step 6: Contact
   firstName?: string;
   lastName?: string;
   email?: string;

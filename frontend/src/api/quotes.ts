@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 import type {
-  VehicleInfo,
+  VehicleLookupResult,
   InsuranceProvider,
   QuoteGenerationRequest,
   QuoteGenerationResponse,
@@ -9,11 +9,30 @@ import type {
   MobileServiceCheckResponse,
   InStoreServiceCheckResponse,
   QuoteApprovalResponse,
+  ShopsNearbyResponse,
 } from '@/types/api';
 
-// Vehicle identification
-export async function identifyVehicle(vin: string): Promise<VehicleInfo> {
-  const response = await apiClient.post('/api/v1/vehicles/identify/', { vin });
+// Vehicle identification - supports VIN or license plate
+export interface IdentifyVehicleParams {
+  vin?: string;
+  license_plate?: string;
+  state?: string;
+}
+
+export async function identifyVehicle(
+  params: IdentifyVehicleParams
+): Promise<VehicleLookupResult> {
+  const response = await apiClient.post('/api/v1/vehicles/identify/', params);
+  return response.data;
+}
+
+// Shops nearby - get shops sorted by distance
+export async function getShopsNearby(
+  postalCode: string
+): Promise<ShopsNearbyResponse> {
+  const response = await apiClient.get('/api/v1/shops/nearby/', {
+    params: { postal_code: postalCode },
+  });
   return response.data;
 }
 

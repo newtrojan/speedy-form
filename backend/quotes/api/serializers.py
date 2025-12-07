@@ -25,18 +25,58 @@ class QuoteCustomerSerializer(serializers.Serializer):
 
 
 class QuoteGenerationRequestSerializer(serializers.Serializer):
-    vin = serializers.CharField(max_length=17)
-    glass_type = serializers.CharField()
-    manufacturer = serializers.CharField(default="nags")
-    service_type = serializers.ChoiceField(choices=["mobile", "in_store"])
-    payment_type = serializers.ChoiceField(choices=["cash", "insurance"])
-
-    # Damage assessment fields (optional)
-    damage_type = serializers.CharField(
-        required=False, allow_blank=True, default="unknown"
+    # Service intent - determines which flow to use
+    service_intent = serializers.ChoiceField(
+        choices=["replacement", "chip_repair", "other"],
+        default="replacement",
+        help_text="Type of service: replacement, chip_repair, or other (CSR review)",
     )
-    damage_quantity = serializers.CharField(
-        required=False, allow_blank=True, default="unknown"
+
+    # Vehicle identification (one required for replacement, not for chip_repair)
+    vin = serializers.CharField(max_length=17, required=False, allow_blank=True)
+    license_plate = serializers.CharField(
+        max_length=20, required=False, allow_blank=True
+    )
+    plate_state = serializers.CharField(max_length=2, required=False, allow_blank=True)
+
+    # Glass details (required for replacement, not for chip_repair)
+    glass_type = serializers.ChoiceField(
+        choices=[
+            "windshield",
+            "back_glass",
+            "driver_side",
+            "passenger_side",
+            "rear_driver_side",
+            "rear_passenger_side",
+            "sunroof",
+            "other",
+        ],
+        required=False,
+    )
+
+    # Damage details
+    damage_type = serializers.ChoiceField(
+        choices=["chip", "crack", "shattered", "unknown"],
+        required=False,
+        default="unknown",
+    )
+    chip_count = serializers.IntegerField(
+        min_value=1, max_value=3, required=False, allow_null=True
+    )
+
+    # Part selection (from vehicle lookup - avoids re-fetching from AUTOBOLT)
+    nags_part_number = serializers.CharField(
+        required=False,
+        max_length=20,
+        allow_blank=True,
+        help_text="Selected NAGS part number from vehicle lookup",
+    )
+
+    # Service type and shop selection
+    service_type = serializers.ChoiceField(choices=["mobile", "in_store"])
+    shop_id = serializers.IntegerField(help_text="Selected shop ID")
+    distance_miles = serializers.FloatField(
+        required=False, allow_null=True, help_text="Distance to shop (for mobile fee)"
     )
 
     location = QuoteLocationSerializer()
@@ -44,12 +84,43 @@ class QuoteGenerationRequestSerializer(serializers.Serializer):
     customer = QuoteCustomerSerializer()
 
     def validate(self, data):
+        service_intent = data.get("service_intent", "replacement")
         service_type = data.get("service_type")
         location = data.get("location", {})
-        payment_type = data.get("payment_type")
-        insurance = data.get("insurance")
 
+        # Replacement flow validation
+        if service_intent == "replacement":
+            # Must have VIN or (license_plate + plate_state)
+            vin = data.get("vin")
+            license_plate = data.get("license_plate")
+            plate_state = data.get("plate_state")
+
+            if not vin and not (license_plate and plate_state):
+                raise serializers.ValidationError(
+                    {"vin": "VIN or license plate+state required for replacement quotes"}
+                )
+
+            # Must have glass type
+            if not data.get("glass_type"):
+                raise serializers.ValidationError(
+                    {"glass_type": "Glass type required for replacement quotes"}
+                )
+
+        # Chip repair flow validation
+        elif service_intent == "chip_repair":
+            if not data.get("chip_count"):
+                raise serializers.ValidationError(
+                    {"chip_count": "Chip count (1-3) required for chip repair quotes"}
+                )
+
+        # "other" flow - no additional validation (goes to CSR review)
+
+        # Mobile service validation
         if service_type == "mobile":
+            if not data.get("distance_miles"):
+                raise serializers.ValidationError(
+                    {"distance_miles": "Distance required for mobile service"}
+                )
             if (
                 not location.get("street_address")
                 or not location.get("city")
@@ -58,15 +129,6 @@ class QuoteGenerationRequestSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     {"location": "Full address is required for mobile service."}
                 )
-
-        if payment_type == "insurance" and not insurance:
-            raise serializers.ValidationError(
-                {
-                    "insurance": (
-                        "Insurance details are required for " "insurance payment type."
-                    )
-                }
-            )
 
         return data
 

@@ -8,7 +8,6 @@ from django.utils import timezone
 from quotes.models import Quote, QuoteLineItem
 from customers.models import Customer
 from shops.models import Shop
-from shops.services.serviceability import ServiceabilityService
 from pricing.services import PricingService, PricingError
 from vehicles.services import VehicleLookupService, VehicleLookupError
 from core.exceptions import ServiceException
@@ -29,90 +28,70 @@ def serialize_decimals(obj):
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def generate_quote_task(
     self,
-    vin,
-    glass_type,
-    manufacturer,
-    postal_code,
-    service_type,
-    payment_type,
-    customer_data,
+    # Service intent determines the flow
+    service_intent="replacement",
+    # Vehicle identification (required for replacement)
+    vin=None,
+    license_plate=None,
+    plate_state=None,
+    # Glass and damage details
+    glass_type=None,
     damage_type="unknown",
-    damage_quantity="unknown",
+    chip_count=None,
+    # Part selection (from frontend - avoids re-fetching from AUTOBOLT)
+    nags_part_number=None,
+    # Location and service
+    postal_code=None,
+    service_type=None,
     shop_id=None,
+    distance_miles=None,
     service_address=None,
+    # Customer
+    customer_data=None,
     insurance_data=None,
 ):
     """
     Async task to generate a quote.
 
-    Flow:
-    1. Check serviceability and find shop
+    Supports 3 service intents:
+    1. replacement: Full vehicle lookup → pricing flow
+    2. chip_repair: Simple chip count → flat pricing
+    3. other: Manual review quote for CSR
+
+    Flow for replacement:
+    1. Resolve VIN from plate if needed
     2. Lookup vehicle and parts via VehicleLookupService
     3. Calculate pricing via PricingService
     4. Create customer and quote records
     5. Send confirmation email
     6. Auto-approve if shop allows
+
+    Flow for chip_repair:
+    1. Calculate chip repair pricing
+    2. Create customer and quote records
+    3. Send confirmation email
+    4. Auto-approve (chip repairs are simple)
+
+    Flow for other:
+    1. Create quote with needs_manual_review=True
+    2. Route to CSR queue
     """
-    logger.info(f"Starting quote generation for VIN {vin}")
+    logger.info(
+        f"Starting quote generation: intent={service_intent}, "
+        f"vin={vin}, plate={license_plate}, shop_id={shop_id}"
+    )
 
     try:
-        # Initialize Services
-        serviceability_service = ServiceabilityService()
-        vehicle_lookup_service = VehicleLookupService()
-        pricing_service = PricingService()
-
-        # 1. Validate Serviceability
-        if service_type == "mobile":
-            street = service_address.get("street") if service_address else None
-            city = service_address.get("city") if service_address else None
-            state = service_address.get("state") if service_address else None
-
-            service_check = serviceability_service.check_mobile(
-                postal_code, street, city, state
-            )
-        else:
-            service_check = serviceability_service.check_in_store(postal_code)
-
-        if not service_check.get("is_serviceable"):
-            logger.warning(f"Quote request unserviceable: {postal_code}")
-            return {
-                "status": "failed",
-                "error": "Service not available in this area.",
-                "details": service_check.get("message"),
-            }
-
-        # Use the shop found by serviceability check if not provided
+        # Validate shop_id is provided
         if not shop_id:
-            shop_data = service_check.get("shop")
-            if shop_data:
-                shop_id = shop_data.get("id")
-            else:
-                return {"status": "failed", "error": "No shop found."}
+            return {"status": "failed", "error": "shop_id is required"}
 
-        shop = Shop.objects.get(id=shop_id)
-
-        # 2. Lookup Vehicle and Parts
         try:
-            lookup_result = vehicle_lookup_service.lookup_by_vin(
-                vin, glass_type=glass_type
-            )
-        except VehicleLookupError as e:
-            logger.error(f"Vehicle lookup failed for {vin}: {e}")
-            return {"status": "failed", "error": f"Vehicle lookup failed: {e}"}
+            shop = Shop.objects.get(id=shop_id)
+        except Shop.DoesNotExist:
+            return {"status": "failed", "error": f"Shop {shop_id} not found"}
 
-        # 3. Calculate Pricing
-        try:
-            quote_pricing = pricing_service.calculate_quote(
-                lookup_result=lookup_result,
-                shop=shop,
-                service_type=service_type,
-                distance_miles=service_check.get("distance_miles"),
-            )
-        except PricingError as e:
-            logger.error(f"Pricing calculation failed: {e}")
-            return {"status": "failed", "error": f"Pricing failed: {e}"}
-
-        # 4. Create/Get Customer
+        # Create/Get Customer
         customer, created = Customer.objects.get_or_create(
             email=customer_data.get("email"),
             defaults={
@@ -122,82 +101,303 @@ def generate_quote_task(
             },
         )
 
-        # 5. Create Quote Record
-        pricing_data = quote_pricing.to_dict()
-
-        # Determine initial state based on review flags
-        initial_state = "pending_validation" if quote_pricing.needs_review else "draft"
-
-        quote = Quote.objects.create(
-            customer=customer,
-            shop=shop,
-            vin=vin,
-            vehicle_info=pricing_data["vehicle"],
-            postal_code=postal_code,
-            glass_type=glass_type,
-            damage_type=damage_type,
-            damage_quantity=damage_quantity,
-            service_type=service_type,
-            service_address=service_address or {},
-            distance_from_shop_miles=service_check.get("distance_miles"),
-            payment_type=payment_type,
-            pricing_details=pricing_data["pricing"],
-            part_cost=quote_pricing.glass_cost,
-            labor_cost=quote_pricing.labor_cost,
-            fees=serialize_decimals(
-                {
-                    "kit_fee": quote_pricing.kit_fee,
-                    "calibration_fee": quote_pricing.calibration_fee,
-                    "mobile_fee": quote_pricing.mobile_fee,
-                }
-            ),
-            total_price=quote_pricing.total,
-            state=initial_state,
-            expires_at=timezone.now() + timedelta(days=7),
-        )
-
-        # Create Line Items
-        for item in quote_pricing.line_items:
-            QuoteLineItem.objects.create(
-                quote=quote,
-                type=item.get("type"),
-                description=item.get("description"),
-                unit_price=item.get("unit_price"),
-                quantity=item.get("quantity"),
-                subtotal=item.get("subtotal"),
+        # Route based on service intent
+        if service_intent == "chip_repair":
+            return _generate_chip_repair_quote(
+                shop=shop,
+                customer=customer,
+                chip_count=chip_count,
+                service_type=service_type,
+                distance_miles=distance_miles,
+                postal_code=postal_code,
+                service_address=service_address,
             )
 
-        logger.info(f"Quote {quote.id} created successfully.")
-
-        # Send engagement email immediately to confirm receipt
-        send_quote_received_email.delay(quote.id)
-
-        # Check if shop has auto-approval enabled AND quote doesn't need review
-        if shop.auto_approve_quotes and not quote_pricing.needs_review:
-            logger.info(
-                f"Auto-approval enabled for shop {shop.id}. Sending quote email."
+        elif service_intent == "other":
+            return _generate_other_glass_quote(
+                shop=shop,
+                customer=customer,
+                glass_type=glass_type,
+                damage_type=damage_type,
+                service_type=service_type,
+                distance_miles=distance_miles,
+                postal_code=postal_code,
+                service_address=service_address,
             )
-            quote.send_to_customer()
-            quote.save()
-            send_quote_email.delay(quote.id)
 
-        return {
-            "status": "completed",
-            "quote_id": str(quote.id),
-            "total_price": str(quote.total_price),
-            "needs_review": quote_pricing.needs_review,
-        }
+        else:  # replacement
+            return _generate_replacement_quote(
+                shop=shop,
+                customer=customer,
+                vin=vin,
+                license_plate=license_plate,
+                plate_state=plate_state,
+                glass_type=glass_type,
+                damage_type=damage_type,
+                service_type=service_type,
+                distance_miles=distance_miles,
+                postal_code=postal_code,
+                service_address=service_address,
+                insurance_data=insurance_data,
+                nags_part_number=nags_part_number,
+            )
 
     except ServiceException as e:
         logger.error(f"Service error generating quote: {str(e)}")
         return {"status": "failed", "error": str(e)}
-    except NotImplementedError as e:
-        # PricingService not yet implemented
-        logger.error(f"Not implemented: {str(e)}")
-        return {"status": "failed", "error": str(e)}
     except Exception as e:
         logger.error(f"Unexpected error generating quote: {str(e)}", exc_info=True)
         return {"status": "failed", "error": "An unexpected error occurred."}
+
+
+def _generate_chip_repair_quote(
+    shop,
+    customer,
+    chip_count,
+    service_type,
+    distance_miles,
+    postal_code,
+    service_address,
+):
+    """Generate a chip repair quote."""
+    pricing_service = PricingService()
+
+    try:
+        chip_pricing = pricing_service.calculate_chip_repair(
+            chip_count=chip_count,
+            shop=shop,
+            service_type=service_type,
+            distance_miles=distance_miles,
+        )
+    except PricingError as e:
+        logger.error(f"Chip repair pricing failed: {e}")
+        return {"status": "failed", "error": f"Pricing failed: {e}"}
+
+    # Create quote - chip repairs are simple, auto-approve
+    quote = Quote.objects.create(
+        customer=customer,
+        shop=shop,
+        vin=None,
+        vehicle_info=None,
+        postal_code=postal_code,
+        glass_type="windshield",  # Chip repairs are always windshield
+        damage_type="chip",
+        service_type=service_type,
+        service_address=service_address or {},
+        distance_from_shop_miles=distance_miles,
+        payment_type="cash",  # Chip repairs default to cash
+        pricing_details=chip_pricing.to_dict()["pricing"],
+        part_cost=Decimal("0.00"),
+        labor_cost=chip_pricing.chip_repair_cost,
+        fees=serialize_decimals({"mobile_fee": chip_pricing.mobile_fee}),
+        total_price=chip_pricing.total,
+        state="draft",  # Chip repairs don't need CSR review
+        expires_at=timezone.now() + timedelta(days=7),
+    )
+
+    # Create Line Items
+    for item in chip_pricing.line_items:
+        QuoteLineItem.objects.create(
+            quote=quote,
+            type=item.get("type"),
+            description=item.get("description"),
+            unit_price=item.get("unit_price"),
+            quantity=item.get("quantity"),
+            subtotal=item.get("subtotal"),
+        )
+
+    logger.info(f"Chip repair quote {quote.id} created successfully.")
+
+    # Send confirmation email
+    send_quote_received_email.delay(quote.id)
+
+    # Auto-approve chip repairs if shop allows
+    if shop.auto_approve_quotes:
+        quote.send_to_customer()
+        quote.save()
+        send_quote_email.delay(quote.id)
+
+    return {
+        "status": "completed",
+        "quote_id": str(quote.id),
+        "total_price": str(quote.total_price),
+        "needs_review": False,
+    }
+
+
+def _generate_other_glass_quote(
+    shop,
+    customer,
+    glass_type,
+    damage_type,
+    service_type,
+    distance_miles,
+    postal_code,
+    service_address,
+):
+    """Generate a quote for 'other' glass that needs CSR review."""
+    # Create quote with needs_manual_review flag - CSR will price it
+    quote = Quote.objects.create(
+        customer=customer,
+        shop=shop,
+        vin=None,
+        vehicle_info=None,
+        postal_code=postal_code,
+        glass_type=glass_type or "other",
+        damage_type=damage_type,
+        service_type=service_type,
+        service_address=service_address or {},
+        distance_from_shop_miles=distance_miles,
+        payment_type="cash",
+        pricing_details={},
+        part_cost=Decimal("0.00"),
+        labor_cost=Decimal("0.00"),
+        fees={},
+        total_price=Decimal("0.00"),  # CSR will set pricing
+        state="pending_validation",  # Goes to CSR queue
+        expires_at=timezone.now() + timedelta(days=7),
+    )
+
+    logger.info(f"Other glass quote {quote.id} created - needs CSR review.")
+
+    # Send confirmation email that we received their request
+    send_quote_received_email.delay(quote.id)
+
+    return {
+        "status": "completed",
+        "quote_id": str(quote.id),
+        "total_price": "0.00",
+        "needs_review": True,
+        "message": "Your request has been received. A specialist will contact you shortly.",
+    }
+
+
+def _generate_replacement_quote(
+    shop,
+    customer,
+    vin,
+    license_plate,
+    plate_state,
+    glass_type,
+    damage_type,
+    service_type,
+    distance_miles,
+    postal_code,
+    service_address,
+    insurance_data,
+    nags_part_number=None,
+):
+    """Generate a replacement quote with full vehicle lookup and pricing."""
+    vehicle_lookup_service = VehicleLookupService()
+    pricing_service = PricingService()
+
+    # Resolve VIN from license plate if needed
+    if not vin and license_plate and plate_state:
+        try:
+            plate_result = vehicle_lookup_service.lookup_by_plate(
+                license_plate, plate_state
+            )
+            vin = plate_result.vin
+            logger.info(f"Resolved VIN {vin} from plate {license_plate}")
+        except VehicleLookupError as e:
+            logger.error(f"Plate lookup failed for {license_plate}: {e}")
+            return {"status": "failed", "error": f"Vehicle lookup failed: {e}"}
+
+    # Lookup vehicle and parts
+    try:
+        lookup_result = vehicle_lookup_service.lookup_by_vin(vin, glass_type=glass_type)
+    except VehicleLookupError as e:
+        logger.error(f"Vehicle lookup failed for {vin}: {e}")
+        return {"status": "failed", "error": f"Vehicle lookup failed: {e}"}
+
+    # If frontend provided a specific part number, filter to that part
+    if nags_part_number and lookup_result.parts:
+        selected_part = next(
+            (p for p in lookup_result.parts if p.nags_part_number == nags_part_number),
+            None,
+        )
+        if selected_part:
+            logger.info(f"Using pre-selected part: {nags_part_number}")
+            lookup_result.parts = [selected_part]
+        else:
+            logger.warning(
+                f"Pre-selected part {nags_part_number} not found in lookup results, "
+                f"using all {len(lookup_result.parts)} parts"
+            )
+
+    # Calculate pricing
+    try:
+        quote_pricing = pricing_service.calculate_quote(
+            lookup_result=lookup_result,
+            shop=shop,
+            service_type=service_type,
+            distance_miles=distance_miles,
+        )
+    except PricingError as e:
+        logger.error(f"Pricing calculation failed: {e}")
+        return {"status": "failed", "error": f"Pricing failed: {e}"}
+
+    # Determine initial state based on review flags
+    initial_state = "pending_validation" if quote_pricing.needs_review else "draft"
+
+    pricing_data = quote_pricing.to_dict()
+
+    quote = Quote.objects.create(
+        customer=customer,
+        shop=shop,
+        vin=vin,
+        vehicle_info=pricing_data["vehicle"],
+        postal_code=postal_code,
+        glass_type=glass_type,
+        damage_type=damage_type,
+        service_type=service_type,
+        service_address=service_address or {},
+        distance_from_shop_miles=distance_miles,
+        payment_type="cash",  # Show all 3 tiers on frontend
+        pricing_details=pricing_data["pricing"],
+        part_cost=quote_pricing.glass_cost,
+        labor_cost=quote_pricing.labor_cost,
+        fees=serialize_decimals(
+            {
+                "kit_fee": quote_pricing.kit_fee,
+                "calibration_fee": quote_pricing.calibration_fee,
+                "mobile_fee": quote_pricing.mobile_fee,
+            }
+        ),
+        total_price=quote_pricing.total,
+        state=initial_state,
+        expires_at=timezone.now() + timedelta(days=7),
+    )
+
+    # Create Line Items
+    for item in quote_pricing.line_items:
+        QuoteLineItem.objects.create(
+            quote=quote,
+            type=item.get("type"),
+            description=item.get("description"),
+            unit_price=item.get("unit_price"),
+            quantity=item.get("quantity"),
+            subtotal=item.get("subtotal"),
+        )
+
+    logger.info(f"Replacement quote {quote.id} created successfully.")
+
+    # Send engagement email
+    send_quote_received_email.delay(quote.id)
+
+    # Auto-approve if shop allows and quote doesn't need review
+    if shop.auto_approve_quotes and not quote_pricing.needs_review:
+        logger.info(f"Auto-approval enabled for shop {shop.id}. Sending quote email.")
+        quote.send_to_customer()
+        quote.save()
+        send_quote_email.delay(quote.id)
+
+    return {
+        "status": "completed",
+        "quote_id": str(quote.id),
+        "total_price": str(quote.total_price),
+        "needs_review": quote_pricing.needs_review,
+    }
 
 
 @shared_task

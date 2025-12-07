@@ -1,6 +1,7 @@
 import { QuoteFormProvider, useQuoteForm } from '@/context/QuoteFormContext';
-import { VehicleStep } from './VehicleStep';
+import { ServiceIntentStep } from './ServiceIntentStep';
 import { LocationStep } from './LocationStep';
+import { VehicleStep } from './VehicleStep';
 import { GlassTypeStep } from './GlassTypeStep';
 import { ContactStep } from './ContactStep';
 import { Link } from 'react-router-dom';
@@ -67,33 +68,40 @@ function NewQuoteContent() {
       {/* Progress Steps */}
       <div className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-2 md:gap-4">
             <StepIndicator
               number={1}
-              label="Vehicle"
+              label="Service"
               active={currentStep === 1}
               completed={currentStep > 1}
             />
-            <div className="w-12 h-0.5 bg-gray-300" />
+            <div className="w-8 md:w-12 h-0.5 bg-gray-300" />
             <StepIndicator
               number={2}
               label="Location"
               active={currentStep === 2}
               completed={currentStep > 2}
             />
-            <div className="w-12 h-0.5 bg-gray-300" />
+            <div className="w-8 md:w-12 h-0.5 bg-gray-300" />
             <StepIndicator
               number={3}
-              label="Glass Type"
+              label="Vehicle"
               active={currentStep === 3}
               completed={currentStep > 3}
             />
-            <div className="w-12 h-0.5 bg-gray-300" />
+            <div className="w-8 md:w-12 h-0.5 bg-gray-300" />
             <StepIndicator
               number={4}
-              label="Contact"
+              label="Glass"
               active={currentStep === 4}
               completed={currentStep > 4}
+            />
+            <div className="w-8 md:w-12 h-0.5 bg-gray-300" />
+            <StepIndicator
+              number={5}
+              label="Contact"
+              active={currentStep === 5}
+              completed={currentStep > 5}
             />
           </div>
         </div>
@@ -103,10 +111,11 @@ function NewQuoteContent() {
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto">
           {/* Step Content */}
-          {currentStep === 1 && <VehicleStep />}
+          {currentStep === 1 && <ServiceIntentStep />}
           {currentStep === 2 && <LocationStep />}
-          {currentStep === 3 && <GlassTypeStep />}
-          {currentStep === 4 && <ContactStep />}
+          {currentStep === 3 && <VehicleStep />}
+          {currentStep === 4 && <GlassTypeStep />}
+          {currentStep === 5 && <ContactStep />}
         </div>
       </main>
     </div>

@@ -34,26 +34,37 @@ class GenerateQuoteView(APIView):
 
         data = serializer.validated_data
 
+        # Build service address for mobile service
+        service_address = None
+        if data["service_type"] == "mobile":
+            service_address = {
+                "street": data["location"].get("street_address"),
+                "city": data["location"].get("city"),
+                "state": data["location"].get("state"),
+            }
+
         # Transform nested serializer structure to match task signature
         task_kwargs = {
-            "vin": data["vin"],
-            "glass_type": data["glass_type"],
-            "manufacturer": data.get("manufacturer", "nags"),
+            # Service intent
+            "service_intent": data.get("service_intent", "replacement"),
+            # Vehicle identification
+            "vin": data.get("vin"),
+            "license_plate": data.get("license_plate"),
+            "plate_state": data.get("plate_state"),
+            # Glass and damage details
+            "glass_type": data.get("glass_type"),
+            "damage_type": data.get("damage_type", "unknown"),
+            "chip_count": data.get("chip_count"),
+            # Part selection (from frontend - avoids re-fetching from AUTOBOLT)
+            "nags_part_number": data.get("nags_part_number"),
+            # Location and service
             "postal_code": data["location"]["postal_code"],
             "service_type": data["service_type"],
-            "payment_type": data["payment_type"],
+            "shop_id": data["shop_id"],
+            "distance_miles": data.get("distance_miles"),
+            "service_address": service_address,
+            # Customer
             "customer_data": data["customer"],
-            "damage_type": data.get("damage_type", "unknown"),
-            "damage_quantity": data.get("damage_quantity", "unknown"),
-            "service_address": (
-                {
-                    "street": data["location"].get("street_address"),
-                    "city": data["location"].get("city"),
-                    "state": data["location"].get("state"),
-                }
-                if data["service_type"] == "mobile"
-                else None
-            ),
             "insurance_data": data.get("insurance"),
         }
 

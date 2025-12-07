@@ -26,6 +26,61 @@ class PricingError(Exception):
 
 
 @dataclass
+class ChipRepairPricing:
+    """Result of a chip repair pricing calculation."""
+
+    # Shop info
+    shop_id: int
+    shop_name: str
+
+    # Pricing breakdown
+    chip_count: int
+    chip_repair_cost: Decimal
+    mobile_fee: Decimal
+    subtotal: Decimal
+    tax: Decimal
+    total: Decimal
+
+    # Line items for quote
+    line_items: list[dict]
+
+    # Flags
+    needs_manual_review: bool = False
+    confidence: str = "high"
+    review_reason: str | None = None
+
+    @property
+    def needs_review(self) -> bool:
+        """Check if quote needs CSR review."""
+        return self.needs_manual_review
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "vehicle": None,  # No vehicle for chip repair
+            "part": None,
+            "shop": {
+                "id": self.shop_id,
+                "name": self.shop_name,
+            },
+            "pricing": {
+                "chip_repair_cost": str(self.chip_repair_cost),
+                "mobile_fee": str(self.mobile_fee),
+                "subtotal": str(self.subtotal),
+                "tax": str(self.tax),
+                "total": str(self.total),
+            },
+            "line_items": self.line_items,
+            "flags": {
+                "needs_manual_review": self.needs_manual_review,
+                "needs_review": self.needs_review,
+                "confidence": self.confidence,
+                "review_reason": self.review_reason,
+            },
+        }
+
+
+@dataclass
 class QuotePricing:
     """Result of a pricing calculation."""
 
@@ -444,3 +499,134 @@ class PricingService:
             desc_parts.append(f"{part.calibration_type} Calibration Required")
 
         return ", ".join(desc_parts) if desc_parts else "Standard Glass"
+
+    def calculate_chip_repair(
+        self,
+        chip_count: int,
+        shop: "Shop",
+        service_type: str,
+        distance_miles: float | None = None,
+    ) -> ChipRepairPricing:
+        """
+        Calculate chip repair pricing.
+
+        Chip repairs don't require vehicle identification - just count chips.
+
+        Pricing logic (from PricingProfile):
+        - Chip 1 (WR-1): chip_repair_wr1 (default $49)
+        - Chip 2 (WR-2): chip_repair_wr2 (default $29)
+        - Chip 3 (WR-3): chip_repair_wr3 (default $29)
+        - Chip 4+: Recommend replacement instead
+
+        Args:
+            chip_count: Number of chips (1-3)
+            shop: Shop model instance
+            service_type: "mobile" or "in_store"
+            distance_miles: Distance for mobile service (required if mobile)
+
+        Returns:
+            ChipRepairPricing with pricing breakdown
+
+        Raises:
+            PricingError: If chip_count > 3 or pricing cannot be calculated
+        """
+        if chip_count > 3:
+            raise PricingError(
+                "More than 3 chips requires replacement. "
+                "Please select 'Windshield Replacement' instead."
+            )
+
+        if chip_count < 1:
+            raise PricingError("Chip count must be at least 1")
+
+        # Get pricing profile
+        profile = self._get_pricing_profile(shop)
+
+        # Calculate chip repair cost using PricingProfile method
+        chip_repair_cost = profile.calculate_chip_repair(chip_count)
+
+        # Calculate mobile fee if applicable
+        mobile_fee = Decimal("0.00")
+        if service_type == "mobile":
+            mobile_fee = self._calculate_mobile_fee(service_type, distance_miles, profile)
+
+        # Calculate totals
+        subtotal = chip_repair_cost + mobile_fee
+        tax = Decimal("0.00")  # Tax not implemented for MVP
+        total = subtotal + tax
+
+        # Build line items
+        line_items = self._build_chip_repair_line_items(
+            chip_count=chip_count,
+            profile=profile,
+            mobile_fee=mobile_fee,
+        )
+
+        logger.info(
+            f"Calculated chip repair quote for shop {shop.name}: "
+            f"chips={chip_count}, repair=${chip_repair_cost}, "
+            f"mobile=${mobile_fee}, total=${total}"
+        )
+
+        return ChipRepairPricing(
+            shop_id=shop.id,
+            shop_name=shop.name,
+            chip_count=chip_count,
+            chip_repair_cost=chip_repair_cost,
+            mobile_fee=mobile_fee,
+            subtotal=subtotal,
+            tax=tax,
+            total=total,
+            line_items=line_items,
+        )
+
+    def _build_chip_repair_line_items(
+        self,
+        chip_count: int,
+        profile: PricingProfile,
+        mobile_fee: Decimal,
+    ) -> list[dict]:
+        """Build line items for chip repair quote."""
+        line_items = []
+
+        # First chip (WR-1)
+        if chip_count >= 1:
+            line_items.append({
+                "type": "chip_repair",
+                "description": "Chip Repair #1 (WR-1)",
+                "unit_price": profile.chip_repair_wr1,
+                "quantity": 1,
+                "subtotal": profile.chip_repair_wr1,
+            })
+
+        # Second chip (WR-2)
+        if chip_count >= 2:
+            line_items.append({
+                "type": "chip_repair",
+                "description": "Chip Repair #2 (WR-2)",
+                "unit_price": profile.chip_repair_wr2,
+                "quantity": 1,
+                "subtotal": profile.chip_repair_wr2,
+            })
+
+        # Third chip (WR-3)
+        if chip_count >= 3:
+            line_items.append({
+                "type": "chip_repair",
+                "description": "Chip Repair #3 (WR-3)",
+                "unit_price": profile.chip_repair_wr3,
+                "quantity": 1,
+                "subtotal": profile.chip_repair_wr3,
+            })
+
+        # Mobile fee
+        if mobile_fee > 0:
+            line_items.append({
+                "type": "fee",
+                "description": "Mobile Service Fee",
+                "unit_price": mobile_fee,
+                "quantity": 1,
+                "subtotal": mobile_fee,
+            })
+
+        return line_items
