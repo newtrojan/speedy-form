@@ -6,7 +6,7 @@ VehicleLookupResult for vehicle/part information.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -74,7 +74,16 @@ class ChipRepairPricing:
                 "tax": str(self.tax),
                 "total": str(self.total),
             },
-            "line_items": self.line_items,
+            "line_items": [
+                {
+                    "type": item["type"],
+                    "description": item["description"],
+                    "unit_price": str(item["unit_price"]),
+                    "quantity": item["quantity"],
+                    "subtotal": str(item["subtotal"]),
+                }
+                for item in self.line_items
+            ],
             "flags": {
                 "needs_manual_review": self.needs_manual_review,
                 "needs_review": self.needs_review,
@@ -99,6 +108,7 @@ class QuotePricing:
     nags_part_number: str
     part_description: str
     features: list[str]
+    photo_urls: list[str]
 
     # Shop info
     shop_id: int
@@ -139,7 +149,10 @@ class QuotePricing:
         """
         if self.total < REPLACEMENT_PRICE_MIN or self.total > REPLACEMENT_PRICE_MAX:
             self.price_out_of_bounds = True
-            reason = f"Price ${self.total} outside bounds (${REPLACEMENT_PRICE_MIN}-${REPLACEMENT_PRICE_MAX})"
+            reason = (
+                f"Price ${self.total} outside bounds "
+                f"(${REPLACEMENT_PRICE_MIN}-${REPLACEMENT_PRICE_MAX})"
+            )
             if self.review_reason:
                 self.review_reason = f"{self.review_reason}; {reason}"
             else:
@@ -172,6 +185,7 @@ class QuotePricing:
                 "nags_part_number": self.nags_part_number,
                 "description": self.part_description,
                 "features": self.features,
+                "photo_urls": self.photo_urls,
             },
             "shop": {
                 "id": self.shop_id,
@@ -189,7 +203,16 @@ class QuotePricing:
                 "tax": str(self.tax),
                 "total": str(self.total),
             },
-            "line_items": self.line_items,
+            "line_items": [
+                {
+                    "type": item["type"],
+                    "description": item["description"],
+                    "unit_price": str(item["unit_price"]),
+                    "quantity": item["quantity"],
+                    "subtotal": str(item["subtotal"]),
+                }
+                for item in self.line_items
+            ],
             "flags": {
                 "needs_part_selection": self.needs_part_selection,
                 "needs_calibration_review": self.needs_calibration_review,
@@ -306,6 +329,7 @@ class PricingService:
             nags_part_number=part.nags_part_number,
             part_description=part_description,
             features=part.features,
+            photo_urls=part.photo_urls,
             # Shop info
             shop_id=shop.id,
             shop_name=shop.name,

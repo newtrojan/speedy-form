@@ -124,7 +124,10 @@ class NHTSAClient:
         if not year or not make or not model:
             result.needs_manual_review = True
             result.confidence = "low"
-            result.review_reason = f"Incomplete vehicle data from NHTSA (Year: {year}, Make: {make}, Model: {model})"
+            result.review_reason = (
+                f"Incomplete vehicle data from NHTSA "
+                f"(Year: {year}, Make: {make}, Model: {model})"
+            )
 
         return result
 

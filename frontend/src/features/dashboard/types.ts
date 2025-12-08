@@ -32,14 +32,14 @@ export interface QuoteListItem {
   customer_phone: string;
   customer_name: string;
   glass_type: string;
-  service_type: "mobile" | "in_store";
-  payment_type: "cash" | "insurance";
+  service_type: 'mobile' | 'in_store';
+  payment_type: 'cash' | 'insurance';
   total_price: string;
   state: QuoteState;
   state_display: string;
   created_at: string;
   age_hours: number;
-  sla_status: "on_time" | "at_risk" | "breached";
+  sla_status: 'on_time' | 'at_risk' | 'breached';
   expires_at: string | null;
   view_count: number;
   last_viewed_at: string | null;
@@ -47,14 +47,14 @@ export interface QuoteListItem {
 }
 
 export type QuoteState =
-  | "draft"
-  | "pending_validation"
-  | "sent"
-  | "customer_approved"
-  | "scheduled"
-  | "converted"
-  | "expired"
-  | "rejected";
+  | 'draft'
+  | 'pending_validation'
+  | 'sent'
+  | 'customer_approved'
+  | 'scheduled'
+  | 'converted'
+  | 'expired'
+  | 'rejected';
 
 export interface QuoteDetail {
   id: string;
@@ -76,7 +76,7 @@ export interface QuoteDetail {
     display_name: string;
   };
   service: {
-    type: "mobile" | "in_store";
+    type: 'mobile' | 'in_store';
     location: Record<string, string>;
     assigned_shop: {
       id: number;
@@ -84,7 +84,7 @@ export interface QuoteDetail {
     } | null;
   };
   payment: {
-    type: "cash" | "insurance";
+    type: 'cash' | 'insurance';
     provider: string | null;
   };
   pricing: {
@@ -114,7 +114,7 @@ export interface QuoteDetail {
 
 export interface LineItem {
   id: number;
-  type: "part" | "labor" | "fee" | "custom";
+  type: 'part' | 'labor' | 'fee' | 'custom';
   description: string;
   unit_price: string;
   quantity: number;
@@ -131,7 +131,7 @@ export interface StateLogEntry {
 
 export interface QuoteViewEntry {
   viewed_at: string;
-  device_type: "mobile" | "tablet" | "desktop" | "unknown";
+  device_type: 'mobile' | 'tablet' | 'desktop' | 'unknown';
 }
 
 export interface QuoteNote {
@@ -143,20 +143,21 @@ export interface QuoteNote {
 
 export interface PartInfo {
   nags_part_number: string | null;
-  calibration_type: "none" | "static" | "dynamic" | "dual";
+  calibration_type: 'none' | 'static' | 'dynamic' | 'dual';
   features: string[];
+  photo_urls: string[];
   moulding_required: boolean;
   hardware_required: boolean;
   labor_hours: number | null;
 }
 
 export type FilterType =
-  | "all"
-  | "needs_review"
-  | "hot_leads"
-  | "awaiting_response"
-  | "follow_up"
-  | "scheduled";
+  | 'all'
+  | 'needs_review'
+  | 'hot_leads'
+  | 'awaiting_response'
+  | 'follow_up'
+  | 'scheduled';
 
 export interface QuoteFilters {
   state?: string;

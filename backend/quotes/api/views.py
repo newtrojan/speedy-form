@@ -145,6 +145,7 @@ class QuoteStatusView(APIView):
 class QuotePreviewView(RetrieveAPIView):
     """
     Preview a generated quote.
+    Automatically tracks customer views with deduplication.
     """
 
     permission_classes = []
@@ -153,12 +154,63 @@ class QuotePreviewView(RetrieveAPIView):
     lookup_field = "id"
     lookup_url_kwarg = "quote_id"
 
+    def _get_client_ip(self, request):
+        """Extract client IP from request, handling proxies."""
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    def _parse_device_type(self, user_agent: str) -> str:
+        """Simple device type detection from User-Agent."""
+        ua_lower = user_agent.lower()
+        if any(x in ua_lower for x in ["mobile", "android", "iphone", "ipod"]):
+            return "mobile"
+        if any(x in ua_lower for x in ["ipad", "tablet"]):
+            return "tablet"
+        return "desktop"
+
+    def _track_view(self, quote, request):
+        """Record quote view with deduplication (5-min window per IP)."""
+        # Only track for quotes that have been sent to customer
+        if quote.state not in ["sent", "customer_approved", "scheduled"]:
+            return
+
+        ip_address = self._get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+        device_type = self._parse_device_type(user_agent)
+
+        # Dedupe: skip if same IP viewed within 5 minutes
+        five_minutes_ago = timezone.now() - timedelta(minutes=5)
+        recent_view = QuoteView.objects.filter(
+            quote=quote,
+            ip_address=ip_address,
+            viewed_at__gte=five_minutes_ago
+        ).exists()
+
+        if not recent_view:
+            QuoteView.objects.create(
+                quote=quote,
+                ip_address=ip_address,
+                user_agent=user_agent[:1000],
+                device_type=device_type,
+            )
+
     @extend_schema(
         summary="Preview Quote",
-        description="Get details of a generated quote.",
+        description="Get details of a generated quote. Automatically tracks customer views.",
     )
     def get(self, request, *args, **kwargs):
-        return super().get(request, *args, **kwargs)
+        response = super().get(request, *args, **kwargs)
+
+        # Track the view (fire-and-forget, don't affect response)
+        try:
+            quote = self.get_object()
+            self._track_view(quote, request)
+        except Exception:
+            pass  # Don't break preview if tracking fails
+
+        return response
 
 
 class ApproveQuoteView(APIView):

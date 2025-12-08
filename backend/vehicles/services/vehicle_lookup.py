@@ -248,8 +248,8 @@ class VehicleLookupService:
         for part in result.parts:
             if part.nags_part_number and part.nags_list_price is None:
                 try:
-                    enriched = self.nags.enrich_autobolt_part(part)
-                    # Update in place (part is a reference)
+                    self.nags.enrich_autobolt_part(part)
+                    # enrich_autobolt_part updates part in place
                 except Exception as e:
                     logger.warning(
                         f"Failed to enrich part {part.nags_part_number} with NAGS: {e}"

@@ -276,6 +276,7 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
                 "nags_part_number": part.get("nags_part_number"),
                 "calibration_type": calibration_type,
                 "features": part.get("features", []),
+                "photo_urls": part.get("photo_urls", []),
                 "moulding_required": to_float(pricing.get("moulding_fee", 0)) > 0,
                 "hardware_required": to_float(pricing.get("hardware_fee", 0)) > 0,
                 "labor_hours": None,  # Not stored in current structure
@@ -287,6 +288,7 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
                 "nags_part_number": None,
                 "calibration_type": "none",
                 "features": [],
+                "photo_urls": [],
                 "moulding_required": to_float(data.get("moulding_fee", 0)) > 0,
                 "hardware_required": to_float(data.get("hardware_fee", 0)) > 0,
                 "labor_hours": None,

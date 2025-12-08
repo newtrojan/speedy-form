@@ -42,6 +42,9 @@ class GlassPart:
     moulding_required: bool = False  # MLDING_FLAG = 'Y'
     clips_required: bool = False  # CLIPS_FLAG = 'Y'
 
+    # Part images (from AUTOBOLT)
+    photo_urls: list[str] = field(default_factory=list)
+
     # Source tracking
     source: str = "unknown"  # "autobolt", "nags", "manual"
 
@@ -150,6 +153,7 @@ class VehicleLookupResult:
                     "nags_labor": str(p.nags_labor),
                     "moulding_required": p.moulding_required,
                     "clips_required": p.clips_required,
+                    "photo_urls": p.photo_urls,
                     "source": p.source,
                 }
                 for p in self.parts

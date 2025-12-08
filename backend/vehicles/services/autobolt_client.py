@@ -177,12 +177,16 @@ class AutoboltClient:
             # Also extract prefix_cd for pricing calculations (first 2 chars, e.g., "FW")
             prefix_cd = full_part_number[:2] if full_part_number else ""
 
+            # Extract photo URLs
+            photo_urls = part_data.get("photoUrls", [])
+
             glass_part = GlassPart(
                 nags_part_number=nags_part_number,
                 full_part_number=full_part_number,
                 prefix_cd=prefix_cd,
                 calibration_type=calibration_type,
                 features=features,
+                photo_urls=photo_urls,
                 source=source,
             )
             parts.append(glass_part)
