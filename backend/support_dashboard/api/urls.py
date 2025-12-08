@@ -10,9 +10,13 @@ from support_dashboard.api.views import (
     ValidateQuoteView,
     RejectQuoteView,
     CustomerDetailView,
+    DashboardStatsView,
+    CreateNoteView,
 )
 
 urlpatterns = [
+    # Dashboard stats
+    path("stats/", DashboardStatsView.as_view(), name="support-dashboard-stats"),
     # Quote management
     path("quotes/", QuoteQueueView.as_view(), name="support-quote-queue"),
     path(
@@ -34,6 +38,11 @@ urlpatterns = [
         "quotes/<uuid:quote_id>/reject/",
         RejectQuoteView.as_view(),
         name="support-quote-reject",
+    ),
+    path(
+        "quotes/<uuid:quote_id>/notes/",
+        CreateNoteView.as_view(),
+        name="support-quote-create-note",
     ),
     # Customer lookup
     path(

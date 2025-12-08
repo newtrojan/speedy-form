@@ -8,8 +8,11 @@ from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
+from django.db.models import Count, Q, Exists, OuterRef
+from django.utils import timezone
+from datetime import timedelta
 
-from quotes.models import Quote, QuoteLineItem, QuoteStateLog
+from quotes.models import Quote, QuoteLineItem, QuoteStateLog, QuoteView, QuoteNote
 from customers.models import Customer
 from core.permissions import IsSupportAgent
 from support_dashboard.api.serializers import (
@@ -17,6 +20,8 @@ from support_dashboard.api.serializers import (
     QuoteDetailSerializer,
     QuoteModifySerializer,
     CustomerDetailSerializer,
+    QuoteNoteSerializer,
+    QuoteNoteCreateSerializer,
 )
 from decimal import Decimal
 
@@ -34,7 +39,7 @@ class QuoteQueueView(generics.ListAPIView):
     search_fields = ["customer__email", "vin", "id"]
     ordering_fields = ["created_at", "total_price"]
     ordering = ["-created_at"]
-    pagination_class = None  # Use default from settings (50 per page)
+    # Uses DRF default pagination (PageNumberPagination, 50 per page)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -108,9 +113,9 @@ class QuoteModifyView(generics.UpdateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Update internal notes
-        if "internal_notes" in serializer.validated_data:
-            quote.internal_notes = serializer.validated_data["internal_notes"]
+        # Update CSR notes
+        if "csr_notes" in serializer.validated_data:
+            quote.csr_notes = serializer.validated_data["csr_notes"]
 
         # Update line items
         if "line_items" in serializer.validated_data:
@@ -268,22 +273,13 @@ class RejectQuoteView(APIView):
 
         # Transition state using FSM
         try:
-            quote.reject()
+            quote.reject_quote(user=request.user, notes=f"Rejected: {reason}")
             quote.save()
         except Exception as e:
             return Response(
                 {"error": f"Failed to reject quote: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        # Log state change
-        QuoteStateLog.objects.create(
-            quote=quote,
-            from_state="pending_validation",
-            to_state="rejected",
-            user=request.user,
-            notes=f"Rejected: {reason}",
-        )
 
         # Trigger rejection email
         from core.services.email_service import EmailService
@@ -320,3 +316,152 @@ class CustomerDetailView(generics.RetrieveAPIView):
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
+
+
+class CreateNoteView(APIView):
+    """
+    Add a new CSR note to a quote.
+    """
+
+    permission_classes = [IsSupportAgent]
+
+    @extend_schema(
+        summary="Add Note to Quote",
+        description="Create a new internal CSR note on a quote",
+        request=QuoteNoteCreateSerializer,
+        responses={201: QuoteNoteSerializer},
+    )
+    def post(self, request, quote_id):
+        try:
+            quote = Quote.objects.get(id=quote_id)
+        except Quote.DoesNotExist:
+            return Response(
+                {"error": "Quote not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = QuoteNoteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Create the note with current user
+        note = QuoteNote.objects.create(
+            quote=quote,
+            created_by=request.user,
+            content=serializer.validated_data["content"],
+        )
+
+        return Response(
+            QuoteNoteSerializer(note).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DashboardStatsView(APIView):
+    """
+    Get dashboard statistics for support agents.
+    Returns actionable counts for the sidebar filters.
+    """
+
+    permission_classes = [IsSupportAgent]
+
+    @extend_schema(
+        summary="Get Dashboard Stats",
+        description="Get counts for dashboard sidebar filters",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "needs_review": {"type": "integer"},
+                    "hot_leads": {"type": "integer"},
+                    "awaiting_response": {"type": "integer"},
+                    "follow_up": {"type": "integer"},
+                    "scheduled": {"type": "integer"},
+                    "today": {
+                        "type": "object",
+                        "properties": {
+                            "sent": {"type": "integer"},
+                            "viewed": {"type": "integer"},
+                            "scheduled": {"type": "integer"},
+                        },
+                    },
+                },
+            }
+        },
+    )
+    def get(self, request):
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        forty_eight_hours_ago = now - timedelta(hours=48)
+        twenty_four_hours_ago = now - timedelta(hours=24)
+
+        # Subquery to check if quote has any views
+        has_views = Exists(QuoteView.objects.filter(quote=OuterRef("pk")))
+
+        # Subquery to get last view timestamp
+        # For follow_up: sent > 48hrs OR last_view > 24hrs ago with no action
+
+        # needs_review: state=pending_validation
+        needs_review = Quote.objects.filter(state="pending_validation").count()
+
+        # Get all sent quotes with view annotations
+        sent_quotes = Quote.objects.filter(state="sent").annotate(has_views=has_views)
+
+        # hot_leads: sent + has views (customer engaged but hasn't scheduled)
+        hot_leads = sent_quotes.filter(has_views=True).count()
+
+        # awaiting_response: sent + no views yet
+        awaiting_response = sent_quotes.filter(has_views=False).count()
+
+        # follow_up: sent and either:
+        # - sent > 48 hours ago, OR
+        # - has views but last view was > 24 hours ago
+        # This indicates quotes that need attention
+        stale_no_views = Quote.objects.filter(
+            state="sent", created_at__lt=forty_eight_hours_ago
+        ).annotate(has_views=has_views).filter(has_views=False)
+
+        # Quotes that were viewed but last view was > 24 hours ago
+        viewed_quotes = Quote.objects.filter(state="sent").annotate(
+            has_views=has_views
+        ).filter(has_views=True)
+
+        stale_with_views_count = 0
+        for quote in viewed_quotes:
+            last_view = quote.views.order_by("-viewed_at").first()
+            if last_view and last_view.viewed_at < twenty_four_hours_ago:
+                stale_with_views_count += 1
+
+        follow_up = stale_no_views.count() + stale_with_views_count
+
+        # scheduled: state=scheduled
+        scheduled = Quote.objects.filter(state="scheduled").count()
+
+        # Today's stats
+        sent_today = Quote.objects.filter(
+            state__in=["sent", "customer_approved", "scheduled", "converted"],
+            logs__to_state="sent",
+            logs__timestamp__gte=today_start,
+        ).distinct().count()
+
+        views_today = QuoteView.objects.filter(viewed_at__gte=today_start).count()
+
+        scheduled_today = Quote.objects.filter(
+            state__in=["scheduled", "converted"],
+            logs__to_state="scheduled",
+            logs__timestamp__gte=today_start,
+        ).distinct().count()
+
+        return Response(
+            {
+                "needs_review": needs_review,
+                "hot_leads": hot_leads,
+                "awaiting_response": awaiting_response,
+                "follow_up": follow_up,
+                "scheduled": scheduled,
+                "today": {
+                    "sent": sent_today,
+                    "viewed": views_today,
+                    "scheduled": scheduled_today,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )

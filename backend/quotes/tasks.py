@@ -349,7 +349,8 @@ def _generate_replacement_quote(
         service_address=service_address or {},
         distance_from_shop_miles=distance_miles,
         payment_type="cash",  # Show all 3 tiers on frontend
-        pricing_details=pricing_data["pricing"],
+        # Store full pricing_data including part info, shop, and flags
+        pricing_details=pricing_data,
         part_cost=quote_pricing.glass_cost,
         labor_cost=quote_pricing.labor_cost,
         fees=serialize_decimals(

@@ -3,9 +3,30 @@ Serializers for support dashboard APIs.
 """
 
 from rest_framework import serializers
-from quotes.models import Quote
+from quotes.models import Quote, QuoteNote
 from customers.models import Customer
 from django.utils import timezone
+
+
+class QuoteNoteSerializer(serializers.ModelSerializer):
+    """
+    Serializer for CSR notes on quotes.
+    """
+
+    created_by_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = QuoteNote
+        fields = ["id", "content", "created_by_name", "created_at"]
+        read_only_fields = ["id", "created_by_name", "created_at"]
+
+
+class QuoteNoteCreateSerializer(serializers.Serializer):
+    """
+    Serializer for creating a new note.
+    """
+
+    content = serializers.CharField(min_length=1, max_length=5000)
 
 
 class QuoteListSerializer(serializers.ModelSerializer):
@@ -16,9 +37,13 @@ class QuoteListSerializer(serializers.ModelSerializer):
     vehicle_display = serializers.SerializerMethodField()
     customer_email = serializers.EmailField(source="customer.email")
     customer_phone = serializers.CharField(source="customer.phone")
+    customer_name = serializers.SerializerMethodField()
     state_display = serializers.CharField(source="get_state_display")
     age_hours = serializers.SerializerMethodField()
     sla_status = serializers.SerializerMethodField()
+    view_count = serializers.SerializerMethodField()
+    last_viewed_at = serializers.SerializerMethodField()
+    is_hot = serializers.SerializerMethodField()
 
     class Meta:
         model = Quote
@@ -27,6 +52,7 @@ class QuoteListSerializer(serializers.ModelSerializer):
             "vehicle_display",
             "customer_email",
             "customer_phone",
+            "customer_name",
             "glass_type",
             "service_type",
             "payment_type",
@@ -37,12 +63,19 @@ class QuoteListSerializer(serializers.ModelSerializer):
             "age_hours",
             "sla_status",
             "expires_at",
+            "view_count",
+            "last_viewed_at",
+            "is_hot",
         ]
 
     def get_vehicle_display(self, obj):
         """Format as '2021 Honda Accord'"""
         vehicle = obj.vehicle_info
         return f"{vehicle.get('year')} {vehicle.get('make')} {vehicle.get('model')}"
+
+    def get_customer_name(self, obj):
+        """Get customer full name"""
+        return f"{obj.customer.first_name} {obj.customer.last_name}".strip()
 
     def get_age_hours(self, obj):
         """Calculate hours since creation"""
@@ -59,6 +92,19 @@ class QuoteListSerializer(serializers.ModelSerializer):
         else:
             return "breached"
 
+    def get_view_count(self, obj):
+        """Count of quote views"""
+        return obj.views.count()
+
+    def get_last_viewed_at(self, obj):
+        """Timestamp of last view"""
+        last_view = obj.views.order_by("-viewed_at").first()
+        return last_view.viewed_at if last_view else None
+
+    def get_is_hot(self, obj):
+        """Quote is 'hot' if viewed 2+ times"""
+        return obj.views.count() >= 2
+
 
 class QuoteDetailSerializer(serializers.ModelSerializer):
     """
@@ -72,6 +118,9 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
     payment = serializers.SerializerMethodField()
     pricing = serializers.SerializerMethodField()
     state_history = serializers.SerializerMethodField()
+    engagement = serializers.SerializerMethodField()
+    notes = serializers.SerializerMethodField()
+    part_info = serializers.SerializerMethodField()
     _permissions = serializers.SerializerMethodField()
 
     class Meta:
@@ -86,7 +135,10 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
             "pricing",
             "state",
             "state_history",
-            "internal_notes",
+            "csr_notes",
+            "notes",
+            "part_info",
+            "engagement",
             "created_at",
             "expires_at",
             "_permissions",
@@ -157,6 +209,89 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
             for log in logs
         ]
 
+    def get_engagement(self, obj):
+        """Get quote engagement/view tracking data"""
+        views = obj.views.all()
+        view_count = views.count()
+        last_view = views.order_by("-viewed_at").first()
+
+        return {
+            "view_count": view_count,
+            "last_viewed_at": last_view.viewed_at if last_view else None,
+            "is_hot": view_count >= 2,
+            "views": [
+                {
+                    "viewed_at": view.viewed_at,
+                    "device_type": view.device_type,
+                }
+                for view in views[:10]  # Last 10 views
+            ],
+        }
+
+    def get_notes(self, obj):
+        """Get all CSR notes for the quote."""
+        notes = obj.csr_notes_list.all()
+        return QuoteNoteSerializer(notes, many=True).data
+
+    def get_part_info(self, obj):
+        """Extract part info from pricing_details JSON.
+
+        Handles two data formats:
+        - New format (V1.2+): Full pricing_data dict with "part", "pricing", "flags" keys
+        - Old format (V1.1): Only the "pricing" dict was stored directly
+        """
+        data = obj.pricing_details or {}
+
+        # Helper to safely convert to float
+        def to_float(val, default=0):
+            if val is None:
+                return default
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return default
+
+        # Check if new format (has "part" key) or old format
+        if "part" in data:
+            # New format: full pricing_data dict
+            part = data.get("part", {})
+            pricing = data.get("pricing", {})
+
+            # Determine calibration type from description or fee
+            calibration_fee = to_float(pricing.get("calibration_fee", 0))
+            calibration_type = "none"
+            if calibration_fee > 0:
+                # Extract from part description if available
+                description = part.get("description", "").lower()
+                if "dual" in description:
+                    calibration_type = "dual"
+                elif "dynamic" in description:
+                    calibration_type = "dynamic"
+                elif "static" in description:
+                    calibration_type = "static"
+                else:
+                    calibration_type = "required"  # Generic calibration needed
+
+            return {
+                "nags_part_number": part.get("nags_part_number"),
+                "calibration_type": calibration_type,
+                "features": part.get("features", []),
+                "moulding_required": to_float(pricing.get("moulding_fee", 0)) > 0,
+                "hardware_required": to_float(pricing.get("hardware_fee", 0)) > 0,
+                "labor_hours": None,  # Not stored in current structure
+            }
+        else:
+            # Old format: only pricing dict was stored, part info not available
+            # Return empty/default values for backwards compatibility
+            return {
+                "nags_part_number": None,
+                "calibration_type": "none",
+                "features": [],
+                "moulding_required": to_float(data.get("moulding_fee", 0)) > 0,
+                "hardware_required": to_float(data.get("hardware_fee", 0)) > 0,
+                "labor_hours": None,
+            }
+
     def get__permissions(self, obj):
         return {
             "can_validate": obj.state == "pending_validation",
@@ -172,7 +307,7 @@ class QuoteModifySerializer(serializers.Serializer):
     """
 
     line_items = serializers.ListField(child=serializers.DictField(), required=False)
-    internal_notes = serializers.CharField(required=False, allow_blank=True)
+    csr_notes = serializers.CharField(required=False, allow_blank=True)
 
     def validate_line_items(self, value):
         """Validate line items structure"""

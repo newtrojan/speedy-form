@@ -4,6 +4,7 @@ from quotes.api.views import (
     QuoteStatusView,
     QuotePreviewView,
     ApproveQuoteView,
+    TrackQuoteViewView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path("status/<str:task_id>/", QuoteStatusView.as_view(), name="quote-status"),
     path("<uuid:quote_id>/preview/", QuotePreviewView.as_view(), name="quote-preview"),
     path("<uuid:quote_id>/approve/", ApproveQuoteView.as_view(), name="quote-approve"),
+    path("<uuid:quote_id>/track-view/", TrackQuoteViewView.as_view(), name="quote-track-view"),
 ]

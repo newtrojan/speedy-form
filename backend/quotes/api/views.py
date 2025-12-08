@@ -2,10 +2,13 @@ from rest_framework.views import APIView
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.throttling import AnonRateThrottle
 from drf_spectacular.utils import extend_schema
 from celery.result import AsyncResult
+from django.utils import timezone
+from datetime import timedelta
 
-from quotes.models import Quote
+from quotes.models import Quote, QuoteView
 from quotes.tasks import generate_quote_task
 from quotes.api.serializers import (
     QuoteGenerationRequestSerializer,
@@ -235,3 +238,87 @@ class ApproveQuoteView(APIView):
             {"status": "approved", "message": "Quote approved successfully."},
             status=status.HTTP_200_OK,
         )
+
+
+class QuoteViewThrottle(AnonRateThrottle):
+    """Rate limit quote view tracking to 1 per 5 minutes per IP/quote combo."""
+
+    rate = "12/hour"  # Max 12 views per hour per IP
+
+    def get_cache_key(self, request, view):
+        # Include quote_id in the cache key for per-quote rate limiting
+        quote_id = view.kwargs.get("quote_id", "")
+        ident = self.get_ident(request)
+        return f"quote_view_{quote_id}_{ident}"
+
+
+class TrackQuoteViewView(APIView):
+    """
+    Track when a customer views their quote page.
+    Public endpoint (no auth required) - called by the quote preview page.
+    """
+
+    permission_classes = []
+    throttle_classes = [QuoteViewThrottle]
+
+    def _get_client_ip(self, request):
+        """Extract client IP from request, handling proxies."""
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    def _parse_device_type(self, user_agent: str) -> str:
+        """Simple device type detection from User-Agent."""
+        ua_lower = user_agent.lower()
+        if any(x in ua_lower for x in ["mobile", "android", "iphone", "ipod"]):
+            return "mobile"
+        if any(x in ua_lower for x in ["ipad", "tablet"]):
+            return "tablet"
+        return "desktop"
+
+    @extend_schema(
+        responses={200: {"type": "object", "properties": {"tracked": {"type": "boolean"}}}},
+        summary="Track Quote View",
+        description="Record that a customer viewed their quote page. Rate limited.",
+    )
+    def post(self, request, quote_id):
+        try:
+            quote = Quote.objects.get(id=quote_id)
+        except Quote.DoesNotExist:
+            return Response(
+                {"error": "Quote not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only track views for quotes that have been sent to the customer
+        if quote.state not in ["sent", "customer_approved", "scheduled"]:
+            return Response(
+                {"tracked": False, "reason": "Quote not in viewable state."},
+                status=status.HTTP_200_OK,
+            )
+
+        ip_address = self._get_client_ip(request)
+        user_agent = request.META.get("HTTP_USER_AGENT", "")
+        device_type = self._parse_device_type(user_agent)
+
+        # Check for duplicate view within 5 minutes from same IP
+        five_minutes_ago = timezone.now() - timedelta(minutes=5)
+        recent_view = QuoteView.objects.filter(
+            quote=quote, ip_address=ip_address, viewed_at__gte=five_minutes_ago
+        ).exists()
+
+        if recent_view:
+            return Response(
+                {"tracked": False, "reason": "View already recorded recently."},
+                status=status.HTTP_200_OK,
+            )
+
+        # Create the view record
+        QuoteView.objects.create(
+            quote=quote,
+            ip_address=ip_address,
+            user_agent=user_agent[:1000],  # Limit user agent length
+            device_type=device_type,
+        )
+
+        return Response({"tracked": True}, status=status.HTTP_200_OK)

@@ -121,6 +121,9 @@ class Quote(models.Model):
     approval_token_hash = models.CharField(max_length=64, null=True, blank=True)
     approval_token_created_at = models.DateTimeField(null=True, blank=True)
 
+    # CSR notes (internal)
+    csr_notes = models.TextField(blank=True)
+
     class Meta:
         indexes = [
             models.Index(fields=["state", "created_at"]),
@@ -232,3 +235,58 @@ class QuoteStateLog(models.Model):
 
     def __str__(self):
         return f"{self.from_state} -> {self.to_state} (Quote {self.quote.id})"
+
+
+class QuoteView(models.Model):
+    """Tracks when a customer views their quote page."""
+
+    DEVICE_CHOICES = [
+        ("mobile", "Mobile"),
+        ("tablet", "Tablet"),
+        ("desktop", "Desktop"),
+        ("unknown", "Unknown"),
+    ]
+
+    quote = models.ForeignKey(Quote, on_delete=models.CASCADE, related_name="views")
+    viewed_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    device_type = models.CharField(
+        max_length=20, choices=DEVICE_CHOICES, default="unknown"
+    )
+
+    class Meta:
+        ordering = ["-viewed_at"]
+        indexes = [
+            models.Index(fields=["quote", "viewed_at"]),
+        ]
+
+    def __str__(self):
+        return f"View of Quote {self.quote.id} at {self.viewed_at}"
+
+
+class QuoteNote(models.Model):
+    """Internal CSR notes attached to a quote."""
+
+    quote = models.ForeignKey(Quote, on_delete=models.CASCADE, related_name="csr_notes_list")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)  # Stored as UTC
+    content = models.TextField()
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["quote", "created_at"]),
+        ]
+
+    def __str__(self):
+        author = self.created_by.get_full_name() if self.created_by else "Unknown"
+        return f"Note by {author} on Quote {self.quote.id}"
+
+    @property
+    def created_by_name(self) -> str:
+        """Returns the full name of the note author."""
+        if self.created_by:
+            full_name = self.created_by.get_full_name()
+            return full_name if full_name else self.created_by.email
+        return "Unknown"
