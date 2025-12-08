@@ -169,14 +169,18 @@ class AutoboltClient:
             features = [f["name"] for f in part_data.get("features", [])]
 
             # Get NAGS part number (amNumber is the full part number with color suffix)
+            # e.g., "FW05555GTYN" -> nags_part_number = "FW05555", full = "FW05555GTYN"
             full_part_number = part_data.get("amNumber", "")
-            # Base NAGS number is typically the OEM part number or first 7 chars
-            oem_numbers = part_data.get("oemPartNumbers", [])
-            nags_part_number = oem_numbers[0] if oem_numbers else full_part_number[:7]
+            # NAGS glass ID is the first 7 chars of amNumber (strip color suffix like GTYN)
+            nags_part_number = full_part_number[:7] if full_part_number else ""
+
+            # Also extract prefix_cd for pricing calculations (first 2 chars, e.g., "FW")
+            prefix_cd = full_part_number[:2] if full_part_number else ""
 
             glass_part = GlassPart(
                 nags_part_number=nags_part_number,
                 full_part_number=full_part_number,
+                prefix_cd=prefix_cd,
                 calibration_type=calibration_type,
                 features=features,
                 source=source,

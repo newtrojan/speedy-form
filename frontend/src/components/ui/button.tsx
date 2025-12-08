@@ -57,4 +57,6 @@ function Button({
   )
 }
 
+// Exporting buttonVariants alongside Button component is intentional for reusability
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants }

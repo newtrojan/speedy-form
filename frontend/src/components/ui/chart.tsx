@@ -18,6 +18,20 @@ export type ChartConfig = {
   )
 }
 
+// Recharts payload types
+type PayloadItem = {
+  dataKey?: string
+  name?: string
+  value?: number | string
+  color?: string
+  fill?: string
+  payload?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+type TooltipPayload = PayloadItem[]
+type LegendPayload = PayloadItem[]
+
 type ChartContextProps = {
   config: ChartConfig
 }
@@ -120,15 +134,21 @@ function ChartTooltipContent({
   labelKey,
 }: {
   active?: boolean
-  payload?: any[]
+  payload?: TooltipPayload
   label?: string
   className?: string
   indicator?: 'line' | 'dot' | 'dashed'
   hideLabel?: boolean
   hideIndicator?: boolean
-  labelFormatter?: (value: any, payload: any[]) => React.ReactNode
+  labelFormatter?: (value: React.ReactNode, payload: TooltipPayload) => React.ReactNode
   labelClassName?: string
-  formatter?: (value: any, name: string, item: any, index: number, payload: any) => React.ReactNode
+  formatter?: (
+    value: number | string,
+    name: string,
+    item: PayloadItem,
+    index: number,
+    payload: Record<string, unknown>
+  ) => React.ReactNode
   color?: string
   nameKey?: string
   labelKey?: string
@@ -186,10 +206,10 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item: any, index: number) => {
+        {payload.map((item: PayloadItem, index: number) => {
           const key = `${nameKey || item.name || item.dataKey || 'value'}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
-          const indicatorColor = color || item.payload.fill || item.color
+          const indicatorColor = color || item.payload?.['fill'] || item.color
 
           return (
             <div
@@ -200,7 +220,7 @@ function ChartTooltipContent({
               )}
             >
               {formatter && item?.value !== undefined && item.name ? (
-                formatter(item.value, item.name, item, index, item.payload)
+                formatter(item.value, item.name, item, index, item.payload ?? {})
               ) : (
                 <>
                   {itemConfig?.icon ? (
@@ -266,7 +286,7 @@ function ChartLegendContent({
 }: {
   className?: string
   hideIcon?: boolean
-  payload?: any[]
+  payload?: LegendPayload
   verticalAlign?: 'top' | 'bottom'
   nameKey?: string
 }) {
@@ -284,7 +304,7 @@ function ChartLegendContent({
         className,
       )}
     >
-      {payload.map((item: any) => {
+      {payload.map((item: PayloadItem) => {
         const key = `${nameKey || item.dataKey || 'value'}`
         const itemConfig = getPayloadConfigFromPayload(config, item, key)
 

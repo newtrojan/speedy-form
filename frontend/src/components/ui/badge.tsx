@@ -43,4 +43,6 @@ function Badge({
   )
 }
 
+// Exporting badgeVariants alongside Badge component is intentional for reusability
+// eslint-disable-next-line react-refresh/only-export-components
 export { Badge, badgeVariants }

@@ -40,6 +40,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       () => accessToken,
       refreshAccessToken
     );
+    // Note: refreshAccessToken is stable via useCallback and doesn't need to be in deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   /**
@@ -59,7 +61,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const newAccessToken = response.data.access_token;
       setAccessToken(newAccessToken);
       return newAccessToken;
-    } catch (error) {
+    } catch {
       // Refresh token expired or invalid - user needs to login again
       setAccessToken(null);
       setUser(null);
@@ -154,7 +156,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           setUser(response.data);
         }
-      } catch (error) {
+      } catch {
         // No valid session - user needs to login
         setAccessToken(null);
         setUser(null);
@@ -179,6 +181,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// Exporting useAuth hook alongside AuthProvider is intentional for auth state access
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

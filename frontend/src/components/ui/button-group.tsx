@@ -75,9 +75,12 @@ function ButtonGroupSeparator({
   )
 }
 
+/* eslint-disable react-refresh/only-export-components */
+// Exporting buttonGroupVariants alongside components is intentional for reusability
 export {
   ButtonGroup,
   ButtonGroupSeparator,
   ButtonGroupText,
   buttonGroupVariants,
 }
+/* eslint-enable react-refresh/only-export-components */

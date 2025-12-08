@@ -16,7 +16,7 @@ export function HomePage() {
               className="h-10 md:h-12"
             />
           </div>
-          <div className="text-base md:text-lg font-semibold text-gray-700 hover:text-[#DC2626] transition-colors">
+          <div className="text-base md:text-lg font-semibold text-gray-700 hover:text-primary transition-colors">
             <a href="tel:1-800-87-GLASS">1-800-87-GLASS</a>
           </div>
         </div>
@@ -37,7 +37,7 @@ export function HomePage() {
             <Link to="/quote/new" className="w-full sm:w-auto">
               <Button
                 size="lg"
-                className="w-full sm:w-auto bg-[#DC2626] hover:bg-[#B91C1C] text-white px-8 py-7 text-base md:text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 min-h-[56px]"
+                className="w-full sm:w-auto bg-primary hover:bg-speedy-red-dark text-white px-8 py-7 text-base md:text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 min-h-[56px]"
               >
                 <ClipboardList className="mr-2 h-5 w-5" />
                 Request a Quote
@@ -64,8 +64,8 @@ export function HomePage() {
             <Card className="hover:shadow-lg transition-shadow duration-200 border-gray-200">
               <CardContent className="pt-8 pb-8">
                 <div className="flex flex-col items-center text-center">
-                  <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-5 ring-4 ring-red-50">
-                    <Zap className="h-8 w-8 text-[#DC2626]" />
+                  <div className="h-16 w-16 rounded-full bg-speedy-red-light flex items-center justify-center mb-5 ring-4 ring-speedy-red-light/50">
+                    <Zap className="h-8 w-8 text-primary" />
                   </div>
                   <h3 className="text-xl font-bold mb-3 text-gray-900">
                     Fast & Easy
@@ -81,8 +81,8 @@ export function HomePage() {
             <Card className="hover:shadow-lg transition-shadow duration-200 border-gray-200">
               <CardContent className="pt-8 pb-8">
                 <div className="flex flex-col items-center text-center">
-                  <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-5 ring-4 ring-red-50">
-                    <DollarSign className="h-8 w-8 text-[#DC2626]" />
+                  <div className="h-16 w-16 rounded-full bg-speedy-red-light flex items-center justify-center mb-5 ring-4 ring-speedy-red-light/50">
+                    <DollarSign className="h-8 w-8 text-primary" />
                   </div>
                   <h3 className="text-xl font-bold mb-3 text-gray-900">
                     Accurate Pricing
@@ -97,8 +97,8 @@ export function HomePage() {
             <Card className="hover:shadow-lg transition-shadow duration-200 border-gray-200">
               <CardContent className="pt-8 pb-8">
                 <div className="flex flex-col items-center text-center">
-                  <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-5 ring-4 ring-red-50">
-                    <MapPin className="h-8 w-8 text-[#DC2626]" />
+                  <div className="h-16 w-16 rounded-full bg-speedy-red-light flex items-center justify-center mb-5 ring-4 ring-speedy-red-light/50">
+                    <MapPin className="h-8 w-8 text-primary" />
                   </div>
                   <h3 className="text-xl font-bold mb-3 text-gray-900">
                     Local Service

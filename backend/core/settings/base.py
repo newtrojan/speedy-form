@@ -262,6 +262,15 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@autoglass.local"
 # Frontend URL for email links
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3333")
 
+# AUTOBOLT API Configuration
+AUTOBOLT_USER_ID = env("AUTOBOLT_USER_ID", default="")
+AUTOBOLT_API_KEY = env("AUTOBOLT_API_KEY", default="")
+AUTOBOLT_API_URL = env("AUTOBOLT_API_URL", default="https://autobolt.speedyautoparts.com")
+AUTOBOLT_CACHE_TTL_DAYS = env.int("AUTOBOLT_CACHE_TTL_DAYS", default=30)
+
+# Google Geocoding API
+GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
+
 # Django Post Office
 POST_OFFICE = {
     "BACKENDS": {

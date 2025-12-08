@@ -153,6 +153,8 @@ function NavigationMenuIndicator({
   )
 }
 
+/* eslint-disable react-refresh/only-export-components */
+// Exporting navigationMenuTriggerStyle alongside components is intentional for reusability
 export {
   NavigationMenu,
   NavigationMenuList,
@@ -164,3 +166,4 @@ export {
   NavigationMenuViewport,
   navigationMenuTriggerStyle,
 }
+/* eslint-enable react-refresh/only-export-components */

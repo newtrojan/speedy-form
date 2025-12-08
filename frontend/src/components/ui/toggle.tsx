@@ -44,4 +44,6 @@ function Toggle({
   )
 }
 
+// Exporting toggleVariants alongside Toggle component is intentional for reusability
+// eslint-disable-next-line react-refresh/only-export-components
 export { Toggle, toggleVariants }
