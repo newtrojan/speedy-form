@@ -173,7 +173,8 @@ def _generate_chip_repair_quote(
         logger.error(f"Chip repair pricing failed: {e}")
         return {"status": "failed", "error": f"Pricing failed: {e}"}
 
-    # Create quote - chip repairs are simple, auto-approve
+    # Create quote - chip repairs are simple, always auto-send
+    # Start at pending_validation, immediately transition to sent
     quote = Quote.objects.create(
         customer=customer,
         shop=shop,
@@ -191,7 +192,7 @@ def _generate_chip_repair_quote(
         labor_cost=chip_pricing.chip_repair_cost,
         fees=serialize_decimals({"mobile_fee": chip_pricing.mobile_fee}),
         total_price=chip_pricing.total,
-        state="draft",  # Chip repairs don't need CSR review
+        state="pending_validation",  # Start here, then auto-send
         expires_at=timezone.now() + timedelta(days=7),
     )
 
@@ -208,14 +209,10 @@ def _generate_chip_repair_quote(
 
     logger.info(f"Chip repair quote {quote.id} created successfully.")
 
-    # Send confirmation email
-    send_quote_received_email.delay(quote.id)
-
-    # Auto-approve chip repairs if shop allows
-    if shop.auto_approve_quotes:
-        quote.send_to_customer()
-        quote.save()
-        send_quote_email.delay(quote.id)
+    # Chip repairs are simple - always auto-send
+    quote.send_to_customer()  # pending_validation → sent
+    quote.save()
+    send_quote_email.delay(quote.id)  # "Your Quote is Ready"
 
     return {
         "status": "completed",
@@ -236,12 +233,12 @@ def _generate_other_glass_quote(
     service_address,
 ):
     """Generate a quote for 'other' glass that needs CSR review."""
-    # Create quote with needs_manual_review flag - CSR will price it
+    # Create quote - CSR will price it
     quote = Quote.objects.create(
         customer=customer,
         shop=shop,
         vin=None,
-        vehicle_info=None,
+        vehicle_info={"year": None, "make": None, "model": "Other Glass"},
         postal_code=postal_code,
         glass_type=glass_type or "other",
         damage_type=damage_type,
@@ -254,21 +251,21 @@ def _generate_other_glass_quote(
         labor_cost=Decimal("0.00"),
         fees={},
         total_price=Decimal("0.00"),  # CSR will set pricing
-        state="pending_validation",  # Goes to CSR queue
+        state="pending_validation",  # Stays here for CSR
         expires_at=timezone.now() + timedelta(days=7),
     )
 
     logger.info(f"Other glass quote {quote.id} created - needs CSR review.")
 
-    # Send confirmation email that we received their request
-    send_quote_received_email.delay(quote.id)
+    # Send "We're Reviewing" email since this always needs CSR
+    send_quote_pending_review_email.delay(quote.id)
 
     return {
         "status": "completed",
         "quote_id": str(quote.id),
         "total_price": "0.00",
         "needs_review": True,
-        "message": "Your request has been received. A specialist will contact you shortly.",
+        "review_reason": "Other glass type requires manual pricing",
     }
 
 
@@ -337,9 +334,7 @@ def _generate_replacement_quote(
         logger.error(f"Pricing calculation failed: {e}")
         return {"status": "failed", "error": f"Pricing failed: {e}"}
 
-    # Determine initial state based on review flags
-    initial_state = "pending_validation" if quote_pricing.needs_review else "draft"
-
+    # Always start at pending_validation state
     pricing_data = quote_pricing.to_dict()
 
     quote = Quote.objects.create(
@@ -360,12 +355,14 @@ def _generate_replacement_quote(
         fees=serialize_decimals(
             {
                 "kit_fee": quote_pricing.kit_fee,
+                "moulding_fee": quote_pricing.moulding_fee,
+                "hardware_fee": quote_pricing.hardware_fee,
                 "calibration_fee": quote_pricing.calibration_fee,
                 "mobile_fee": quote_pricing.mobile_fee,
             }
         ),
         total_price=quote_pricing.total,
-        state=initial_state,
+        state="pending_validation",  # Always start here
         expires_at=timezone.now() + timedelta(days=7),
     )
 
@@ -382,22 +379,37 @@ def _generate_replacement_quote(
 
     logger.info(f"Replacement quote {quote.id} created successfully.")
 
-    # Send engagement email
-    send_quote_received_email.delay(quote.id)
-
-    # Auto-approve if shop allows and quote doesn't need review
-    if shop.auto_approve_quotes and not quote_pricing.needs_review:
-        logger.info(f"Auto-approval enabled for shop {shop.id}. Sending quote email.")
-        quote.send_to_customer()
+    # Decide email flow based on failsafe checks
+    if not quote_pricing.needs_review:
+        # All failsafes passed - auto-send quote to customer
+        logger.info(
+            f"Quote {quote.id} passed all failsafes. Auto-sending to customer."
+        )
+        quote.send_to_customer()  # pending_validation → sent
         quote.save()
-        send_quote_email.delay(quote.id)
+        send_quote_email.delay(quote.id)  # "Your Quote is Ready"
 
-    return {
-        "status": "completed",
-        "quote_id": str(quote.id),
-        "total_price": str(quote.total_price),
-        "needs_review": quote_pricing.needs_review,
-    }
+        return {
+            "status": "completed",
+            "quote_id": str(quote.id),
+            "total_price": str(quote.total_price),
+            "needs_review": False,
+        }
+
+    else:
+        # Failsafe triggered - stays in pending_validation for CSR review
+        logger.info(
+            f"Quote {quote.id} needs CSR review. Reason: {quote_pricing.review_reason}"
+        )
+        send_quote_pending_review_email.delay(quote.id)  # "We're Reviewing..."
+
+        return {
+            "status": "completed",
+            "quote_id": str(quote.id),
+            "total_price": str(quote.total_price),
+            "needs_review": True,
+            "review_reason": quote_pricing.review_reason,
+        }
 
 
 @shared_task
@@ -443,6 +455,32 @@ def send_quote_email(quote_id):
         logger.error(f"Quote {quote_id} not found for email sending")
     except Exception as e:
         logger.error(f"Error queueing email for quote {quote_id}: {str(e)}")
+
+
+@shared_task
+def send_quote_pending_review_email(quote_id):
+    """
+    Sends email when quote needs CSR review.
+
+    This is sent when a failsafe is triggered (price out of bounds,
+    multiple parts, missing calibration data, etc.).
+
+    The email informs the customer that their request is being reviewed
+    and a specialist will contact them shortly.
+    """
+    from core.services.email_service import EmailService
+
+    try:
+        quote = Quote.objects.get(id=quote_id)
+        email_service = EmailService()
+        email_service.send_quote_pending_review(quote)
+
+        logger.info(f"Pending review email sent for quote {quote_id}")
+
+    except Quote.DoesNotExist:
+        logger.error(f"Quote {quote_id} not found for pending review email")
+    except Exception as e:
+        logger.error(f"Error sending pending review email for {quote_id}: {str(e)}")
 
 
 @shared_task

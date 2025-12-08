@@ -83,10 +83,8 @@ class EmailService(BaseService):
                 f"{quote.vehicle_info.get('make')} "
                 f"{quote.vehicle_info.get('model')}"
             )
-            # Use frontend URL from settings
-            approval_link = (
-                f"{settings.FRONTEND_URL}/quotes/approve/{quote.id}?token={token}"
-            )
+            # Use frontend URL from settings - links to quote view page
+            approval_link = f"{settings.FRONTEND_URL}/quote/{quote.id}"
 
             context = {
                 "quote": quote,
@@ -114,6 +112,55 @@ class EmailService(BaseService):
 
         except Exception as e:
             self.log_error(f"Failed to send quote email for {quote.id}: {str(e)}")
+            return False
+
+    def send_quote_pending_review(self, quote: Quote) -> bool:
+        """
+        Sends email when quote needs CSR review.
+
+        This is sent when a failsafe is triggered (price out of bounds,
+        multiple parts, missing calibration data, etc.).
+        """
+        try:
+            vehicle_desc = (
+                f"{quote.vehicle_info.get('year')} "
+                f"{quote.vehicle_info.get('make')} "
+                f"{quote.vehicle_info.get('model')}"
+            )
+
+            context = {
+                "quote": quote,
+                "vehicle_desc": vehicle_desc,
+                "customer_name": quote.customer.first_name,
+            }
+
+            html_message = render_to_string(
+                "emails/quote_pending_review.html", context
+            )
+            subject = f"We're Reviewing Your Quote Request - {vehicle_desc}"
+
+            mail.send(
+                recipients=[quote.customer.email],
+                sender=settings.DEFAULT_FROM_EMAIL,
+                subject=subject,
+                message=(
+                    f"We're reviewing your quote for {vehicle_desc}. "
+                    "An agent will be in touch shortly."
+                ),
+                html_message=html_message,
+                priority="now",
+            )
+
+            self.log_info(
+                f"Pending review email sent to {quote.customer.email} "
+                f"for quote {quote.id}"
+            )
+            return True
+
+        except Exception as e:
+            self.log_error(
+                f"Failed to send pending review email for {quote.id}: {str(e)}"
+            )
             return False
 
     def send_rejection(self, quote: Quote, reason: str) -> bool:

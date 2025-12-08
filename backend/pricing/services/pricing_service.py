@@ -6,11 +6,15 @@ VehicleLookupResult for vehicle/part information.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from pricing.models import PricingProfile
+
+# Price bounds for auto-send validation
+REPLACEMENT_PRICE_MIN = Decimal("500.00")
+REPLACEMENT_PRICE_MAX = Decimal("1200.00")
 
 if TYPE_CHECKING:
     from shops.models import Shop
@@ -122,6 +126,27 @@ class QuotePricing:
     confidence: str
     review_reason: str | None
 
+    # Price validation flags
+    price_out_of_bounds: bool = False
+    missing_nags_price: bool = False
+
+    def check_price_bounds(self) -> bool:
+        """
+        Check if total is within acceptable range for auto-send.
+
+        Returns True if price is within bounds, False otherwise.
+        Sets price_out_of_bounds flag and updates review_reason if out of bounds.
+        """
+        if self.total < REPLACEMENT_PRICE_MIN or self.total > REPLACEMENT_PRICE_MAX:
+            self.price_out_of_bounds = True
+            reason = f"Price ${self.total} outside bounds (${REPLACEMENT_PRICE_MIN}-${REPLACEMENT_PRICE_MAX})"
+            if self.review_reason:
+                self.review_reason = f"{self.review_reason}; {reason}"
+            else:
+                self.review_reason = reason
+            return False
+        return True
+
     @property
     def needs_review(self) -> bool:
         """Check if quote needs CSR review."""
@@ -129,6 +154,8 @@ class QuotePricing:
             self.needs_part_selection
             or self.needs_calibration_review
             or self.needs_manual_review
+            or self.price_out_of_bounds
+            or self.missing_nags_price
         )
 
     def to_dict(self) -> dict:
@@ -167,6 +194,8 @@ class QuotePricing:
                 "needs_part_selection": self.needs_part_selection,
                 "needs_calibration_review": self.needs_calibration_review,
                 "needs_manual_review": self.needs_manual_review,
+                "price_out_of_bounds": self.price_out_of_bounds,
+                "missing_nags_price": self.missing_nags_price,
                 "needs_review": self.needs_review,
                 "confidence": self.confidence,
                 "review_reason": self.review_reason,
@@ -216,14 +245,14 @@ class PricingService:
         if not part:
             raise PricingError("No parts available for pricing")
 
-        # Validate we have the data needed for pricing
+        # Track if NAGS price is missing (for failsafe flag)
+        missing_nags_price = False
         if part.nags_list_price is None:
             logger.warning(
                 f"Part {part.nags_part_number} missing NAGS list price - "
-                "quote will need manual review"
+                "quote will need CSR review"
             )
-            # Set a flag but continue with zero glass cost
-            lookup_result.needs_manual_review = True
+            missing_nags_price = True
             if not lookup_result.review_reason:
                 lookup_result.review_reason = "Missing NAGS list price"
 
@@ -266,7 +295,7 @@ class PricingService:
             f"cal=${calibration_fee}, mobile=${mobile_fee}, total=${total}"
         )
 
-        return QuotePricing(
+        quote_pricing = QuotePricing(
             # Vehicle info
             vin=lookup_result.vin,
             year=lookup_result.year,
@@ -293,13 +322,20 @@ class PricingService:
             total=total,
             # Line items
             line_items=line_items,
-            # Flags
+            # Flags from lookup
             needs_part_selection=lookup_result.needs_part_selection,
             needs_calibration_review=lookup_result.needs_calibration_review,
             needs_manual_review=lookup_result.needs_manual_review,
             confidence=lookup_result.confidence,
             review_reason=lookup_result.review_reason,
+            # Price validation flags
+            missing_nags_price=missing_nags_price,
         )
+
+        # Check price bounds for auto-send validation
+        quote_pricing.check_price_bounds()
+
+        return quote_pricing
 
     def _get_pricing_profile(self, shop: "Shop") -> PricingProfile:
         """Get the default pricing profile for a shop."""
