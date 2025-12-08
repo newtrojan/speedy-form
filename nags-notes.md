@@ -52,10 +52,48 @@
 - `VEH_GLASS.ADDITIONAL_NAGS_LABOR` field exists but often empty
 - Labor likely calculated by shop based on glass type/complexity
 
-### Hardware Linking
-- `dbo.NAGS_HW_CFG` → Hardware configurations
-- `dbo.NAGS_HW_CFG_DET` → Links config to hardware parts (NAGS_HW_ID, QTY)
-- Need to find how glass links to HW_CFG (not via VEH_GLASS directly)
+### Hardware/Moulding Linking ✅ SOLVED
+
+**Data Flow:**
+```
+NAGS_GLASS_CFG (flags: MLDING_FLAG, CLIPS_FLAG, NAGS_LABOR)
+       │
+       ▼
+VEH_GLASS_REGION (links VEH_ID + NAGS_GLASS_ID → NAGS_HW_CFG_ID)
+       │
+       ▼
+NAGS_HW_CFG (hardware configuration set)
+       │
+       ▼
+NAGS_HW_CFG_DET (individual hardware items + qty)
+       │
+       ▼
+NAGS_HW (hardware part details)
+       │
+       ├──► HW_TYPE (filter by type: ML=Moulding, CL=Clip, AH=Adhesive)
+       │
+       └──► NAGS_HW_PRC (pricing)
+```
+
+**Test Case: FW05555 (2024 Toyota Camry)**
+- `NAGS_GLASS_CFG.MLDING_FLAG`: N
+- `NAGS_GLASS_CFG.CLIPS_FLAG`: Y
+- `NAGS_GLASS_CFG.ATCHMNT_DSC`: "TOP & LOWER MOULDING; CAMERA BRACKET"
+- `NAGS_GLASS_CFG.NAGS_LABOR`: **3.3 hours** (vs TUBE_QTY=2.0)
+- `VEH_GLASS_REGION.NAGS_HW_CFG_ID`: 114516
+
+**Hardware Items Found (Config 114516):**
+| Type | Parts | Qty | Price |
+|------|-------|-----|-------|
+| Adhesive (AH) | HAH000004, HAH000448 | 4.0 | $282.90 |
+| Moulding (ML) | 6 parts | 6.0 | $0.00 |
+| Clips (CL) | 4 parts | 34.0 | $0.00 |
+| Camera (CE) | 2 parts | 2.0 | $0.00 |
+| Dam (DA) | 2 parts | 3.0 | $0.00 |
+| Mirror (MR) | 1 part | 1.0 | $0.00 |
+| Seal (SE), Stop (SO), Weatherstrip (WS) | 4 parts | 4.0 | $0.00 |
+
+**Key Finding:** Adhesive has pricing, moulding parts have $0.00 price in NAGS
 
 ---
 

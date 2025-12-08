@@ -15,6 +15,7 @@ from typing import Any
 
 from vehicles.nags_models import (
     NAGSGlass,
+    NAGSGlassConfig,
     NAGSGlassPrice,
     NAGSMake,
     NAGSMakeModel,
@@ -148,6 +149,50 @@ class NAGSClient:
             logger.error(f"NAGS price lookup failed for {nags_part_number}: {e}")
             return None
 
+    def get_glass_config(
+        self,
+        nags_part_number: str,
+    ) -> dict[str, Any]:
+        """
+        Get glass configuration from NAGS_GLASS_CFG.
+
+        Returns labor hours and hardware flags for pricing calculations.
+
+        Args:
+            nags_part_number: NAGS glass ID (e.g., "FW05555")
+
+        Returns:
+            Dict with nags_labor, moulding_required, clips_required
+        """
+        defaults = {
+            "nags_labor": Decimal("1.5"),
+            "moulding_required": False,
+            "clips_required": False,
+            "atchmnt_dsc": "",
+        }
+
+        try:
+            config = (
+                NAGSGlassConfig.objects.using("nags")
+                .filter(nags_glass_id=nags_part_number)
+                .first()
+            )
+
+            if config:
+                return {
+                    "nags_labor": config.nags_labor or Decimal("1.5"),
+                    "moulding_required": config.mlding_flag == "Y",
+                    "clips_required": config.clips_flag == "Y",
+                    "atchmnt_dsc": config.atchmnt_dsc or "",
+                }
+
+            logger.debug(f"NAGS glass config not found for {nags_part_number}")
+            return defaults
+
+        except Exception as e:
+            logger.error(f"NAGS glass config lookup failed for {nags_part_number}: {e}")
+            return defaults
+
     def get_part_details(self, nags_part_number: str) -> dict[str, Any] | None:
         """
         Get full details for a NAGS part number.
@@ -187,16 +232,20 @@ class NAGSClient:
 
     def enrich_autobolt_part(self, part: GlassPart) -> GlassPart:
         """
-        Enrich an AUTOBOLT part with NAGS pricing data.
+        Enrich an AUTOBOLT part with NAGS pricing and configuration data.
 
-        AUTOBOLT provides calibration but not list price.
-        NAGS provides list price for pricing calculations.
+        AUTOBOLT provides calibration but not list price or labor hours.
+        NAGS provides:
+        - List price (NAGS_GLASS_PRC)
+        - Tube qty (NAGS_GLASS)
+        - Labor hours (NAGS_GLASS_CFG.NAGS_LABOR)
+        - Hardware flags (NAGS_GLASS_CFG.MLDING_FLAG, CLIPS_FLAG)
 
         Args:
             part: GlassPart from AUTOBOLT with nags_part_number
 
         Returns:
-            Same GlassPart with nags_list_price added
+            Same GlassPart with NAGS data added
         """
         if not part.nags_part_number:
             return part
@@ -214,6 +263,18 @@ class NAGSClient:
                     part.tube_qty = Decimal(details["tube_qty"])
                 except (ValueError, TypeError):
                     pass
+
+        # Get glass config (labor hours, hardware flags)
+        config = self.get_glass_config(part.nags_part_number)
+        part.nags_labor = config["nags_labor"]
+        part.moulding_required = config["moulding_required"]
+        part.clips_required = config["clips_required"]
+
+        logger.debug(
+            f"Enriched {part.nags_part_number}: price=${part.nags_list_price}, "
+            f"labor={part.nags_labor}h, moulding={part.moulding_required}, "
+            f"clips={part.clips_required}"
+        )
 
         return part
 
@@ -319,6 +380,9 @@ class NAGSClient:
             # Get pricing
             price = self.get_part_price(veh_glass.nags_glass_id)
 
+            # Get glass config (labor hours, hardware flags)
+            config = self.get_glass_config(veh_glass.nags_glass_id)
+
             # Extract features
             features = self._extract_features(glass)
 
@@ -341,7 +405,10 @@ class NAGSClient:
                 calibration_required=False,  # Unknown from NAGS
                 features=features,
                 tube_qty=glass.tube_qty or Decimal("1.5"),
+                nags_labor=config["nags_labor"],
                 additional_labor=additional_labor,
+                moulding_required=config["moulding_required"],
+                clips_required=config["clips_required"],
                 source="nags",
             )
 

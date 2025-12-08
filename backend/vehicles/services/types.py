@@ -34,8 +34,13 @@ class GlassPart:
     features: list[str] = field(default_factory=list)
 
     # Installation details (from NAGS)
-    tube_qty: Decimal = Decimal("1.5")  # Urethane tubes needed
+    tube_qty: Decimal = Decimal("1.5")  # Urethane tubes needed (for kit fee)
+    nags_labor: Decimal = Decimal("1.5")  # Labor hours from NAGS_GLASS_CFG
     additional_labor: str = ""  # Extra labor notes
+
+    # Hardware flags (from NAGS_GLASS_CFG)
+    moulding_required: bool = False  # MLDING_FLAG = 'Y'
+    clips_required: bool = False  # CLIPS_FLAG = 'Y'
 
     # Source tracking
     source: str = "unknown"  # "autobolt", "nags", "manual"
@@ -142,6 +147,9 @@ class VehicleLookupResult:
                     "calibration_required": p.calibration_required,
                     "features": p.features,
                     "tube_qty": str(p.tube_qty),
+                    "nags_labor": str(p.nags_labor),
+                    "moulding_required": p.moulding_required,
+                    "clips_required": p.clips_required,
                     "source": p.source,
                 }
                 for p in self.parts

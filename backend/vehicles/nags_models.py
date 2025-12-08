@@ -11,6 +11,68 @@ Connection: Configured in settings as 'nags' database
 from django.db import models
 
 
+class NAGSGlassConfig(models.Model):
+    """
+    Glass configuration with labor hours and hardware flags.
+
+    Table: dbo.NAGS_GLASS_CFG
+    Contains labor hours (NAGS_LABOR) and hardware requirement flags.
+    """
+
+    nags_glass_id = models.CharField(
+        max_length=7,
+        primary_key=True,
+        db_column="NAGS_GLASS_ID",
+        help_text="NAGS glass part ID",
+    )
+    mlding_flag = models.CharField(
+        max_length=1,
+        db_column="MLDING_FLAG",
+        blank=True,
+        null=True,
+        help_text="Moulding required (Y/N)",
+    )
+    clips_flag = models.CharField(
+        max_length=1,
+        db_column="CLIPS_FLAG",
+        blank=True,
+        null=True,
+        help_text="Clips required (Y/N)",
+    )
+    nags_labor = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        db_column="NAGS_LABOR",
+        blank=True,
+        null=True,
+        help_text="Labor hours for installation",
+    )
+    atchmnt_dsc = models.CharField(
+        max_length=255,
+        db_column="ATCHMNT_DSC",
+        blank=True,
+        null=True,
+        help_text="Attachment description (e.g., 'TOP & LOWER MOULDING; CAMERA BRACKET')",
+    )
+
+    class Meta:
+        managed = False
+        db_table = "dbo.NAGS_GLASS_CFG"
+
+    def __str__(self):
+        return f"{self.nags_glass_id} (labor={self.nags_labor}h)"
+
+    @property
+    def moulding_required(self) -> bool:
+        """Check if moulding is required."""
+        return self.mlding_flag == "Y"
+
+    @property
+    def clips_required(self) -> bool:
+        """Check if clips are required."""
+        return self.clips_flag == "Y"
+
+
 class NAGSGlass(models.Model):
     """
     Glass part master data.
@@ -164,13 +226,13 @@ class NAGSGlassPrice(models.Model):
     """
 
     # Composite primary key would be: nags_glass_id + glass_color_cd + region_cd + eff_dt
-    # Django doesn't support composite PKs well, so we use auto ID
-    id = models.AutoField(primary_key=True)
+    # Django doesn't support composite PKs, so we mark nags_glass_id as PK for ORM purposes
+    # Note: This isn't truly unique, so avoid .get() - use .filter().first() instead
 
     nags_glass_id = models.CharField(
         max_length=7,
         db_column="NAGS_GLASS_ID",
-        db_index=True,
+        primary_key=True,
         help_text="FK to NAGS_GLASS",
     )
     atchmnt_flag = models.CharField(
@@ -248,12 +310,11 @@ class NAGSGlassDetail(models.Model):
     Table: dbo.NAGS_GLASS_DET
     """
 
-    id = models.AutoField(primary_key=True)
-
+    # No true PK in this table - using nags_glass_id for ORM purposes
     nags_glass_id = models.CharField(
         max_length=7,
         db_column="NAGS_GLASS_ID",
-        db_index=True,
+        primary_key=True,
     )
     atchmnt_flag = models.CharField(
         max_length=1,
@@ -329,12 +390,11 @@ class NAGSHardwarePrice(models.Model):
     Table: dbo.NAGS_HW_PRC
     """
 
-    id = models.AutoField(primary_key=True)
-
+    # No true PK in this table - using nags_hw_id for ORM purposes
     nags_hw_id = models.CharField(
         max_length=9,
         db_column="NAGS_HW_ID",
-        db_index=True,
+        primary_key=True,
     )
     hw_color_cd = models.CharField(
         max_length=2,
@@ -416,11 +476,10 @@ class NAGSVehicleGlass(models.Model):
     Maps vehicles to compatible glass parts with optional VIN range filtering.
     """
 
-    id = models.AutoField(primary_key=True)
-
+    # No true PK in this table - using veh_id for ORM purposes
     veh_id = models.IntegerField(
         db_column="VEH_ID",
-        db_index=True,
+        primary_key=True,
         help_text="FK to VEH table",
     )
     nags_glass_id = models.CharField(
@@ -542,13 +601,13 @@ class NAGSMakeModel(models.Model):
     Table: dbo.MAKE_MODEL
     """
 
-    id = models.AutoField(primary_key=True)
-
+    # No true PK in this table - using model_id for ORM purposes
     make_id = models.IntegerField(
         db_column="MAKE_ID",
     )
     model_id = models.IntegerField(
         db_column="MODEL_ID",
+        primary_key=True,
     )
     model_nm = models.CharField(
         max_length=50,

@@ -104,6 +104,8 @@ class QuotePricing:
     glass_cost: Decimal
     labor_cost: Decimal
     kit_fee: Decimal
+    moulding_fee: Decimal
+    hardware_fee: Decimal
     calibration_fee: Decimal
     mobile_fee: Decimal
     subtotal: Decimal
@@ -152,6 +154,8 @@ class QuotePricing:
                 "glass_cost": str(self.glass_cost),
                 "labor_cost": str(self.labor_cost),
                 "kit_fee": str(self.kit_fee),
+                "moulding_fee": str(self.moulding_fee),
+                "hardware_fee": str(self.hardware_fee),
                 "calibration_fee": str(self.calibration_fee),
                 "mobile_fee": str(self.mobile_fee),
                 "subtotal": str(self.subtotal),
@@ -227,11 +231,16 @@ class PricingService:
         glass_cost = self._calculate_glass_cost(part, profile)
         labor_cost = self._calculate_labor_cost(part, profile)
         kit_fee = self._calculate_kit_fee(part, profile)
+        moulding_fee = self._calculate_moulding_fee(part, profile)
+        hardware_fee = self._calculate_hardware_fee(part, profile)
         calibration_fee = self._calculate_calibration_fee(part, profile)
         mobile_fee = self._calculate_mobile_fee(service_type, distance_miles, profile)
 
         # Calculate totals
-        subtotal = glass_cost + labor_cost + kit_fee + calibration_fee + mobile_fee
+        subtotal = (
+            glass_cost + labor_cost + kit_fee + moulding_fee +
+            hardware_fee + calibration_fee + mobile_fee
+        )
         tax = Decimal("0.00")  # Tax not implemented for MVP
         total = subtotal + tax
 
@@ -241,6 +250,8 @@ class PricingService:
             glass_cost=glass_cost,
             labor_cost=labor_cost,
             kit_fee=kit_fee,
+            moulding_fee=moulding_fee,
+            hardware_fee=hardware_fee,
             calibration_fee=calibration_fee,
             mobile_fee=mobile_fee,
         )
@@ -251,6 +262,7 @@ class PricingService:
         logger.info(
             f"Calculated quote for {lookup_result.vin}: "
             f"glass=${glass_cost}, labor=${labor_cost}, kit=${kit_fee}, "
+            f"moulding=${moulding_fee}, hardware=${hardware_fee}, "
             f"cal=${calibration_fee}, mobile=${mobile_fee}, total=${total}"
         )
 
@@ -272,6 +284,8 @@ class PricingService:
             glass_cost=glass_cost,
             labor_cost=labor_cost,
             kit_fee=kit_fee,
+            moulding_fee=moulding_fee,
+            hardware_fee=hardware_fee,
             calibration_fee=calibration_fee,
             mobile_fee=mobile_fee,
             subtotal=subtotal,
@@ -337,12 +351,12 @@ class PricingService:
         profile: PricingProfile,
     ) -> Decimal:
         """
-        Calculate labor cost.
+        Calculate labor cost using NAGS_LABOR hours.
 
         If profile.labor_type == 'flat': return flat amount
-        If profile.labor_type == 'multiplier': return tube_qty × rate
+        If profile.labor_type == 'multiplier': return nags_labor × rate
         """
-        return profile.calculate_labor(part.tube_qty, part.prefix_cd)
+        return profile.calculate_labor(part.nags_labor, part.prefix_cd)
 
     def _calculate_kit_fee(
         self,
@@ -391,6 +405,34 @@ class PricingService:
             )
             return profile.calibration_dynamic
 
+    def _calculate_moulding_fee(
+        self,
+        part: "GlassPart",
+        profile: PricingProfile,
+    ) -> Decimal:
+        """
+        Calculate moulding fee if required.
+
+        Uses flat fee from PricingProfile when MLDING_FLAG='Y' in NAGS.
+        """
+        if part.moulding_required and profile.moulding_flat_fee > 0:
+            return profile.moulding_flat_fee
+        return Decimal("0.00")
+
+    def _calculate_hardware_fee(
+        self,
+        part: "GlassPart",
+        profile: PricingProfile,
+    ) -> Decimal:
+        """
+        Calculate hardware/clip fee if required.
+
+        Uses flat fee from PricingProfile when CLIPS_FLAG='Y' in NAGS.
+        """
+        if part.clips_required and profile.hardware_flat_fee > 0:
+            return profile.hardware_flat_fee
+        return Decimal("0.00")
+
     def _calculate_mobile_fee(
         self,
         service_type: str,
@@ -427,6 +469,8 @@ class PricingService:
         glass_cost: Decimal,
         labor_cost: Decimal,
         kit_fee: Decimal,
+        moulding_fee: Decimal,
+        hardware_fee: Decimal,
         calibration_fee: Decimal,
         mobile_fee: Decimal,
     ) -> list[dict]:
@@ -447,20 +491,40 @@ class PricingService:
         if labor_cost > 0:
             line_items.append({
                 "type": "labor",
-                "description": "Installation Labor",
+                "description": f"Installation Labor ({part.nags_labor}h)",
                 "unit_price": labor_cost,
                 "quantity": 1,
                 "subtotal": labor_cost,
             })
 
-        # Kit fee
+        # Kit/Urethane fee
         if kit_fee > 0:
             line_items.append({
                 "type": "fee",
-                "description": "Urethane/Kit Fee",
+                "description": f"Urethane Kit ({part.tube_qty} tubes)",
                 "unit_price": kit_fee,
                 "quantity": 1,
                 "subtotal": kit_fee,
+            })
+
+        # Moulding fee
+        if moulding_fee > 0:
+            line_items.append({
+                "type": "fee",
+                "description": "Moulding Fee",
+                "unit_price": moulding_fee,
+                "quantity": 1,
+                "subtotal": moulding_fee,
+            })
+
+        # Hardware/Clips fee
+        if hardware_fee > 0:
+            line_items.append({
+                "type": "fee",
+                "description": "Hardware/Clips Fee",
+                "unit_price": hardware_fee,
+                "quantity": 1,
+                "subtotal": hardware_fee,
             })
 
         # Calibration
