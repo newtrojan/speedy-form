@@ -18,6 +18,7 @@ import type {
   TemplatesResponse,
   ConversationStatus,
   Channel,
+  InboxResponse,
 } from '../types';
 
 const SUPPORT_BASE = '/api/v1/support';
@@ -152,6 +153,28 @@ export async function getConversations(
 
   const response = await apiClient.get<ConversationsListResponse>(
     `${DASHBOARD_BASE}/conversations/`,
+    { params }
+  );
+  return response.data;
+}
+
+/**
+ * Get unified inbox - all conversations with enriched customer data
+ *
+ * Returns conversations across all customers with Django customer info
+ * and active quotes attached. Useful for CSRs to see full context
+ * without needing a quote first.
+ */
+export async function getInbox(
+  status: ConversationStatus | 'all' = 'open',
+  page: number = 1
+): Promise<InboxResponse> {
+  const params = new URLSearchParams();
+  params.append('status', status);
+  params.append('page', String(page));
+
+  const response = await apiClient.get<InboxResponse>(
+    `${DASHBOARD_BASE}/inbox/`,
     { params }
   );
   return response.data;

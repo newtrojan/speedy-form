@@ -26,11 +26,14 @@ import {
 } from '../hooks/useDashboard';
 import { PartInfoCard } from '../components/PartInfoCard';
 import { MessagesTab } from '../components/MessagesTab';
+import { InboxTab } from '../components/InboxTab';
 import type { FilterType, QuoteListItem, QuoteFilters } from '../types';
 
 type DetailTab = 'info' | 'messages';
+type DashboardView = 'quotes' | 'inbox';
 
 export default function DashboardPage() {
+  const [activeView, setActiveView] = useState<DashboardView>('quotes');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('info');
@@ -295,6 +298,41 @@ export default function DashboardPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar */}
         <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+          {/* Main Navigation */}
+          <div className="p-4 border-b border-gray-200">
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveView('inbox')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeView === 'inbox'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <span>Inbox</span>
+              </button>
+              <button
+                onClick={() => setActiveView('quotes')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeView === 'quotes'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Quotes</span>
+              </button>
+            </nav>
+          </div>
+
+          {/* Quote Queue Section - only show when quotes view is active */}
+          {activeView === 'quotes' && (
+          <>
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
               Quote Queue
@@ -413,10 +451,18 @@ export default function DashboardPage() {
               </button>
             </div>
           </nav>
+          </>
+          )}
         </aside>
 
         {/* Main Content */}
         <main className="flex-1 min-h-0 flex overflow-hidden">
+          {/* Inbox View */}
+          {activeView === 'inbox' && <InboxTab />}
+
+          {/* Quotes View */}
+          {activeView === 'quotes' && (
+          <>
           {/* Quote List */}
           <div className="w-[480px] border-r border-gray-200 bg-white flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -1018,6 +1064,8 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+          </>
+          )}
         </main>
       </div>
 

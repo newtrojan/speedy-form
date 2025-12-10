@@ -26,6 +26,29 @@ from integrations.chatwoot.services import (
 logger = logging.getLogger(__name__)
 
 
+class InboxView(APIView):
+    """
+    Unified inbox - all conversations across all customers.
+
+    Shows all conversations with enriched Django customer data and
+    active quotes, providing CSRs with full context regardless of
+    whether a quote exists.
+
+    GET /api/v1/dashboard/inbox/?status=open&page=1
+    """
+
+    permission_classes = [IsAuthenticated, IsSupportAgent]
+
+    def get(self, request):
+        conversation_status = request.query_params.get("status", "open")
+        page = int(request.query_params.get("page", 1))
+
+        service = ConversationService()
+        result = service.get_inbox_conversations(status=conversation_status, page=page)
+
+        return Response(result)
+
+
 class ConversationListView(APIView):
     """
     List all conversations.

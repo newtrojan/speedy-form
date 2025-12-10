@@ -8,6 +8,7 @@ Webhook URLs are separate in webhooks_urls.py
 from django.urls import path
 
 from integrations.chatwoot.views import (
+    InboxView,
     ConversationListView,
     ConversationDetailView,
     ConversationMessagesView,
@@ -23,6 +24,12 @@ app_name = "chatwoot"
 
 # Dashboard API URLs (authenticated)
 urlpatterns = [
+    # Unified Inbox (all conversations with customer context)
+    path(
+        "inbox/",
+        InboxView.as_view(),
+        name="inbox",
+    ),
     # Conversations
     path(
         "conversations/",

@@ -18,6 +18,7 @@ import {
   addNote,
   getConversationStats,
   getConversations,
+  getInbox,
   getConversationMessages,
   sendMessage,
   getQuoteConversations,
@@ -39,6 +40,8 @@ export const dashboardKeys = {
   conversationStats: () => [...dashboardKeys.all, 'conversation-stats'] as const,
   conversations: (status?: ConversationStatus | 'all') =>
     [...dashboardKeys.all, 'conversations', status] as const,
+  inbox: (status?: ConversationStatus | 'all') =>
+    [...dashboardKeys.all, 'inbox', status] as const,
   conversationMessages: (id: number) =>
     [...dashboardKeys.all, 'conversation', id, 'messages'] as const,
   quoteConversations: (quoteId: string) =>
@@ -200,6 +203,21 @@ export function useConversations(status: ConversationStatus | 'all' = 'all') {
     queryKey: dashboardKeys.conversations(status),
     queryFn: () => getConversations(status),
     refetchInterval: 15000, // Refresh every 15 seconds for real-time feel
+  });
+}
+
+/**
+ * Fetch unified inbox - all conversations with customer context
+ *
+ * Returns conversations enriched with Django customer data and active quotes.
+ * Use this for the main inbox view where CSRs need to see all conversations
+ * regardless of quote status.
+ */
+export function useInbox(status: ConversationStatus | 'all' = 'open') {
+  return useQuery({
+    queryKey: dashboardKeys.inbox(status),
+    queryFn: () => getInbox(status),
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time feel
   });
 }
 

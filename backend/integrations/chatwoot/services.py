@@ -594,6 +594,58 @@ class ConversationService(BaseService):
             self.log_error(f"Failed to get conversations: {e.message}")
             return {"conversations": [], "meta": {}}
 
+    def get_inbox_conversations(
+        self,
+        status: str = "open",
+        page: int = 1,
+    ) -> dict:
+        """
+        Get all conversations for the unified inbox view.
+
+        Enriches conversations with Django customer data and active quotes
+        where available, enabling CSRs to see full context.
+
+        Args:
+            status: Filter by status (open, resolved, pending, all)
+            page: Page number
+
+        Returns:
+            Dict with conversations (enriched with customer data) and pagination info
+        """
+        # Import here to avoid circular imports
+        from customers.models import Customer
+        from quotes.models import Quote
+
+        # Get base conversations from Chatwoot
+        result = self.get_all_conversations(status=status, page=page)
+
+        # Enrich with Django customer data
+        for conv in result.get("conversations", []):
+            contact_email = conv.get("contact", {}).get("email")
+            if contact_email:
+                customer = Customer.objects.filter(email__iexact=contact_email).first()
+                if customer:
+                    conv["django_customer"] = {
+                        "id": customer.id,
+                        "full_name": customer.get_full_name(),
+                        "phone": customer.phone,
+                        "email": customer.email,
+                    }
+                    # Get active quotes for this customer
+                    active_quotes = Quote.objects.filter(
+                        customer=customer,
+                        state__in=["draft", "pending_validation", "sent", "customer_approved"]
+                    ).order_by("-created_at").values("id", "state", "created_at")[:3]
+                    conv["active_quotes"] = list(active_quotes)
+                else:
+                    conv["django_customer"] = None
+                    conv["active_quotes"] = []
+            else:
+                conv["django_customer"] = None
+                conv["active_quotes"] = []
+
+        return result
+
     def get_canned_responses(self) -> list[dict]:
         """
         Get all canned responses/templates.
@@ -632,8 +684,9 @@ class ConversationService(BaseService):
     def _get_last_message(self, conversation: dict) -> dict:
         """Extract last message preview from conversation."""
         last_msg = conversation.get("last_non_activity_message") or {}
+        content = last_msg.get("content") or ""
         return {
-            "content": last_msg.get("content", "")[:100],  # Truncate preview
+            "content": content[:100] if content else "",  # Truncate preview
             "created_at": last_msg.get("created_at"),
             "message_type": last_msg.get("message_type"),
             "sender_type": last_msg.get("sender", {}).get("type"),

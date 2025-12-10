@@ -340,3 +340,48 @@ export interface ConversationStats {
  * Filter for conversation list
  */
 export type ConversationFilter = 'all' | 'unread';
+
+// ============================================
+// Unified Inbox Types
+// ============================================
+
+/**
+ * Django customer data enriched onto conversations
+ */
+export interface DjangoCustomer {
+  id: number;
+  full_name: string;
+  phone: string;
+  email: string;
+}
+
+/**
+ * Active quote summary for inbox
+ */
+export interface ActiveQuoteSummary {
+  id: string;
+  state: QuoteState;
+  created_at: string;
+}
+
+/**
+ * Conversation with enriched customer data for unified inbox
+ */
+export interface InboxConversation extends Conversation {
+  /** Django customer data (if customer exists in system) */
+  django_customer: DjangoCustomer | null;
+  /** Active quotes for this customer (up to 3) */
+  active_quotes: ActiveQuoteSummary[];
+}
+
+/**
+ * Response from GET /dashboard/inbox/
+ */
+export interface InboxResponse {
+  conversations: InboxConversation[];
+  meta: {
+    mine_count?: number;
+    unassigned_count?: number;
+    all_count?: number;
+  };
+}
