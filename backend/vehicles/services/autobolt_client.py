@@ -178,7 +178,26 @@ class AutoboltClient:
             prefix_cd = full_part_number[:2] if full_part_number else ""
 
             # Extract photo URLs
-            photo_urls = part_data.get("photoUrls", [])
+            # Try multiple possible key names from Autobolt API
+            photo_urls = (
+                part_data.get("photoUrls", [])
+                or part_data.get("photos", [])
+                or part_data.get("images", [])
+                or part_data.get("imageUrls", [])
+            )
+
+            # Log for debugging if photos are present
+            if photo_urls:
+                logger.info(f"Found {len(photo_urls)} photos for part {nags_part_number}")
+            else:
+                # Log available keys to help identify correct key name
+                available_keys = [k for k in part_data.keys() if 'photo' in k.lower() or 'image' in k.lower()]
+                if available_keys:
+                    logger.warning(
+                        f"Part {nags_part_number}: No photoUrls found, but found related keys: {available_keys}"
+                    )
+                else:
+                    logger.debug(f"Part {nags_part_number}: No photo URLs in response")
 
             glass_part = GlassPart(
                 nags_part_number=nags_part_number,

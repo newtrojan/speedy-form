@@ -40,7 +40,14 @@ urlpatterns = [
                 path("pricing/", include("pricing.api.urls")),
                 path("quotes/", include("quotes.api.urls")),
                 path("support/", include("support_dashboard.api.urls")),
+                # Chatwoot dashboard endpoints
+                path("dashboard/", include("integrations.chatwoot.urls", namespace="chatwoot")),
             ]
         ),
+    ),
+    # Webhooks (public endpoints for external services)
+    path(
+        "api/v1/webhooks/",
+        include("integrations.chatwoot.webhook_urls", namespace="chatwoot-webhooks"),
     ),
 ]

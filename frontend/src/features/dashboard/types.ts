@@ -165,3 +165,178 @@ export interface QuoteFilters {
   stale?: boolean;
   search?: string;
 }
+
+// ============================================
+// Conversation & Messaging Types (Chatwoot)
+// ============================================
+
+/**
+ * Communication channel type
+ */
+export type Channel = 'sms' | 'email' | 'chat';
+
+/**
+ * Conversation status
+ */
+export type ConversationStatus = 'open' | 'resolved' | 'pending';
+
+/**
+ * Message sender info from Chatwoot
+ */
+export interface MessageSender {
+  id: number | null;
+  name: string | null;
+  type: 'contact' | 'user'; // contact = customer, user = agent
+  avatar_url: string | null;
+}
+
+/**
+ * Single message in a conversation
+ */
+export interface Message {
+  id: number;
+  content: string;
+  message_type: 'incoming' | 'outgoing';
+  private: boolean; // Internal note (not visible to customer)
+  created_at: string; // ISO timestamp
+  sender: MessageSender;
+  attachments: Array<{
+    file_type: string;
+    data_url: string;
+    file_name?: string;
+  }>;
+  content_attributes: Record<string, unknown>;
+  channel: Channel;
+}
+
+/**
+ * Last message preview for conversation list
+ */
+export interface LastMessage {
+  content: string;
+  created_at: string | null;
+  message_type: 'incoming' | 'outgoing' | null;
+  sender_type: 'contact' | 'user' | null;
+}
+
+/**
+ * Contact (customer) in a conversation
+ */
+export interface ConversationContact {
+  id?: number;
+  name?: string;
+  email?: string;
+  phone_number?: string;
+  avatar_url?: string;
+}
+
+/**
+ * Agent assigned to conversation
+ */
+export interface ConversationAssignee {
+  id?: number;
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
+/**
+ * Conversation with a customer
+ */
+export interface Conversation {
+  id: number;
+  status: ConversationStatus;
+  inbox_id: number;
+  channel: Channel; // Derived from inbox_id by backend
+  contact: ConversationContact;
+  last_message: LastMessage;
+  unread_count: number;
+  created_at: string;
+  updated_at: string;
+  labels: string[];
+  assignee: ConversationAssignee;
+}
+
+/**
+ * Hot lead scoring signals
+ */
+export interface LeadScoreSignals {
+  view_count_24h: number;
+  view_count_4h: number;
+  conversation_count: number;
+  has_open_conversation: boolean;
+  last_message_hours_ago: number | null;
+  quote_status: QuoteState;
+}
+
+/**
+ * Lead score for a quote
+ */
+export interface LeadScore {
+  is_hot: boolean;
+  has_new_messages: boolean;
+  new_message_count: number;
+  signals: LeadScoreSignals;
+}
+
+/**
+ * Canned response / message template
+ */
+export interface Template {
+  id: number;
+  short_code: string;
+  content: string;
+}
+
+/**
+ * Response from GET /quotes/{id}/conversations/
+ */
+export interface QuoteConversationsResponse {
+  conversations: Conversation[];
+  lead_score: LeadScore;
+}
+
+/**
+ * Response from GET /conversations/
+ */
+export interface ConversationsListResponse {
+  conversations: Conversation[];
+  meta: {
+    mine_count?: number;
+    unassigned_count?: number;
+    all_count?: number;
+  };
+}
+
+/**
+ * Response from GET /conversations/{id}/messages/
+ */
+export interface MessagesResponse {
+  messages: Message[];
+}
+
+/**
+ * Response from GET /templates/
+ */
+export interface TemplatesResponse {
+  templates: Template[];
+}
+
+/**
+ * Response from GET /conversations/stats/
+ */
+export interface ConversationStats {
+  configured: boolean;
+  error?: string;
+  counts: {
+    open?: number;
+    resolved?: number;
+    pending?: number;
+    all?: number;
+  };
+}
+
+/**
+ * Filter for conversation list
+ */
+export type ConversationFilter = 'all' | 'unread';

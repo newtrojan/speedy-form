@@ -1,5 +1,48 @@
+import re
+
 from django.contrib.gis.db import models
 from django.utils.translation import gettext_lazy as _
+
+
+def normalize_phone_e164(phone: str) -> str:
+    """
+    Normalize phone number to E.164 format (+1XXXXXXXXXX).
+
+    E.164 is the international standard required by SMS providers (Twilio)
+    and Chatwoot for reliable message delivery.
+
+    Examples:
+        - "(555) 123-4567" -> "+15551234567"
+        - "+1-204-963-1621" -> "+12049631621"
+        - "5551234567" -> "+15551234567"
+    """
+    if not phone:
+        return phone
+
+    # Remove all non-digit characters except leading +
+    cleaned = re.sub(r"[^\d+]", "", phone)
+
+    # If already starts with +, it's formatted - just return cleaned version
+    if cleaned.startswith("+"):
+        return cleaned
+
+    # Remove leading zeros
+    cleaned = cleaned.lstrip("0")
+
+    # 10-digit US number -> add +1
+    if len(cleaned) == 10:
+        return f"+1{cleaned}"
+
+    # 11-digit starting with 1 (US with country code) -> add +
+    if len(cleaned) == 11 and cleaned.startswith("1"):
+        return f"+{cleaned}"
+
+    # For other formats with enough digits, assume US and add +1
+    if len(cleaned) >= 7:
+        return f"+1{cleaned}"
+
+    # Return as-is if we can't normalize
+    return phone
 
 
 class Customer(models.Model):
@@ -53,3 +96,15 @@ class Customer(models.Model):
 
     def has_complete_address(self):
         return all([self.street_address, self.city, self.state, self.postal_code])
+
+    def save(self, *args, **kwargs):
+        """
+        Ensure phone is normalized to E.164 format on every save.
+
+        This is the single source of truth for phone normalization,
+        ensuring consistency regardless of how data enters the system
+        (API, admin, shell, migrations, etc.).
+        """
+        if self.phone:
+            self.phone = normalize_phone_e164(self.phone)
+        super().save(*args, **kwargs)

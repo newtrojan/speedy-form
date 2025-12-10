@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClipboardList, Search, Zap, DollarSign, MapPin } from 'lucide-react';
+import { ChatwootWidget } from '@/components/ChatwootWidget';
 
 export function HomePage() {
   return (
@@ -125,6 +126,14 @@ export function HomePage() {
           </p>
         </div>
       </footer>
+
+      {/* Chatwoot Live Chat Widget */}
+      <ChatwootWidget
+        settings={{
+          position: 'right',
+          launcherTitle: 'Chat with us',
+        }}
+      />
     </div>
   );
 }

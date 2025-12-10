@@ -271,6 +271,28 @@ AUTOBOLT_CACHE_TTL_DAYS = env.int("AUTOBOLT_CACHE_TTL_DAYS", default=30)
 # Google Geocoding API
 GOOGLE_GEOCODING_API_KEY = env("GOOGLE_GEOCODING_API_KEY", default="")
 
+# Chatwoot Configuration
+CHATWOOT_BASE_URL = env("CHATWOOT_BASE_URL", default="")
+CHATWOOT_API_TOKEN = env("CHATWOOT_API_TOKEN", default="")
+CHATWOOT_ACCOUNT_ID = env.int("CHATWOOT_ACCOUNT_ID", default=1)
+CHATWOOT_INBOX_ID = env.int("CHATWOOT_INBOX_ID", default=1)  # Default/fallback inbox
+CHATWOOT_WEBHOOK_SECRET = env("CHATWOOT_WEBHOOK_SECRET", default="")
+
+# Chatwoot Channel-to-Inbox Mapping
+# Each channel type maps to a specific Chatwoot inbox ID
+CHATWOOT_INBOXES = {
+    "chat": env.int("CHATWOOT_CHAT_INBOX_ID", default=1),
+    "email": env.int("CHATWOOT_EMAIL_INBOX_ID", default=None),
+    "sms": env.int("CHATWOOT_SMS_INBOX_ID", default=None),
+}
+
+# Reverse mapping: inbox_id -> channel type (built dynamically)
+CHATWOOT_INBOX_CHANNELS = {
+    inbox_id: channel
+    for channel, inbox_id in CHATWOOT_INBOXES.items()
+    if inbox_id is not None
+}
+
 # Django Post Office
 POST_OFFICE = {
     "BACKENDS": {

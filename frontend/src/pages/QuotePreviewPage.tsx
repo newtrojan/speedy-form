@@ -3,6 +3,7 @@ import { useQuotePreview } from '@/hooks/useQuotes';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle, Wrench, RefreshCw, HelpCircle } from 'lucide-react';
+import { ChatwootWidget } from '@/components/ChatwootWidget';
 
 // Helper function to safely format currency values
 function formatCurrency(value: string | number): string {
@@ -72,6 +73,19 @@ export function QuotePreviewPage() {
                 </Button>
               </Link>
             </Card>
+          )}
+
+          {/* Chatwoot Widget with user context */}
+          {quote && (
+            <ChatwootWidget
+              settings={{ position: 'right' }}
+              user={{
+                identifier: quote.customer.email,
+                email: quote.customer.email,
+                name: `${quote.customer.first_name} ${quote.customer.last_name}`,
+                phone_number: quote.customer.phone,
+              }}
+            />
           )}
 
           {quote && (

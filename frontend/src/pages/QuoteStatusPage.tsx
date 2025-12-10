@@ -4,6 +4,7 @@ import { useQuoteStatus } from '@/hooks/useQuotes';
 import { Card } from '@/components/ui/card';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ChatwootWidget } from '@/components/ChatwootWidget';
 
 export function QuoteStatusPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -145,6 +146,14 @@ export function QuoteStatusPage() {
           </Card>
         </div>
       </main>
+
+      {/* Chatwoot Live Chat Widget */}
+      <ChatwootWidget
+        settings={{
+          position: 'right',
+          launcherTitle: 'Need help?',
+        }}
+      />
     </div>
   );
 }

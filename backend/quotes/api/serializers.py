@@ -1,5 +1,32 @@
+import re
 from rest_framework import serializers
 from quotes.models import Quote
+
+
+def normalize_phone_e164(phone: str) -> str:
+    """
+    Normalize phone number to E.164 format (+1XXXXXXXXXX).
+    """
+    if not phone:
+        return phone
+
+    cleaned = re.sub(r"[^\d+]", "", phone)
+
+    if cleaned.startswith("+"):
+        return cleaned
+
+    cleaned = cleaned.lstrip("0")
+
+    if len(cleaned) == 10:
+        return f"+1{cleaned}"
+
+    if len(cleaned) == 11 and cleaned.startswith("1"):
+        return f"+{cleaned}"
+
+    if len(cleaned) >= 7:
+        return f"+1{cleaned}"
+
+    return phone
 
 
 class QuoteLocationSerializer(serializers.Serializer):
@@ -22,6 +49,10 @@ class QuoteCustomerSerializer(serializers.Serializer):
     phone = serializers.CharField()
     first_name = serializers.CharField()
     last_name = serializers.CharField()
+
+    def validate_phone(self, value):
+        """Normalize phone number to E.164 format."""
+        return normalize_phone_e164(value)
 
 
 class QuoteGenerationRequestSerializer(serializers.Serializer):

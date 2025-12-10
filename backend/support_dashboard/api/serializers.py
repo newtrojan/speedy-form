@@ -272,27 +272,79 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
                 else:
                     calibration_type = "required"  # Generic calibration needed
 
+            # Get photo_urls - fall back to cache if missing
+            photo_urls = part.get("photo_urls", [])
+            if not photo_urls and obj.vin:
+                # Photos missing - try to fetch from cache
+                from vehicles.models import AutoboltAPICache
+                cache = AutoboltAPICache.objects.filter(
+                    request_key=obj.vin,
+                    request_type="vin_decode"
+                ).first()
+                if cache:
+                    part_data = cache.get_primary_part()
+                    if part_data:
+                        photo_urls = part_data.get("photoUrls", [])
+
             return {
                 "nags_part_number": part.get("nags_part_number"),
                 "calibration_type": calibration_type,
                 "features": part.get("features", []),
-                "photo_urls": part.get("photo_urls", []),
+                "photo_urls": photo_urls,
                 "moulding_required": to_float(pricing.get("moulding_fee", 0)) > 0,
                 "hardware_required": to_float(pricing.get("hardware_fee", 0)) > 0,
                 "labor_hours": None,  # Not stored in current structure
             }
-        else:
-            # Old format: only pricing dict was stored, part info not available
-            # Return empty/default values for backwards compatibility
-            return {
-                "nags_part_number": None,
-                "calibration_type": "none",
-                "features": [],
-                "photo_urls": [],
-                "moulding_required": to_float(data.get("moulding_fee", 0)) > 0,
-                "hardware_required": to_float(data.get("hardware_fee", 0)) > 0,
-                "labor_hours": None,
-            }
+        # OLD FORMAT FALLBACK: Fetch from AutoboltAPICache
+        if obj.vin:
+            from vehicles.models import AutoboltAPICache
+
+            cache = AutoboltAPICache.objects.filter(
+                request_key=obj.vin,
+                request_type="vin_decode"
+            ).first()
+
+            if cache:
+                part_data = cache.get_primary_part()
+                if part_data:
+                    # Extract features (list of dicts with 'name' key)
+                    features_raw = part_data.get("features", [])
+                    features = [f["name"] for f in features_raw if isinstance(f, dict)]
+
+                    # Get calibration type
+                    calibrations = part_data.get("calibrations", [])
+                    calibration_type = "none"
+                    if calibrations:
+                        cal_name = calibrations[0].get("calibrationType", {}).get("name", "").lower()
+                        if "dual" in cal_name:
+                            calibration_type = "dual"
+                        elif "dynamic" in cal_name:
+                            calibration_type = "dynamic"
+                        elif "static" in cal_name:
+                            calibration_type = "static"
+                        else:
+                            calibration_type = "required"
+
+                    return {
+                        "nags_part_number": part_data.get("amNumber", "")[:7] if part_data.get("amNumber") else None,
+                        "calibration_type": calibration_type,
+                        "features": features,
+                        "photo_urls": part_data.get("photoUrls", []),
+                        "moulding_required": to_float(data.get("moulding_fee", 0)) > 0,
+                        "hardware_required": to_float(data.get("hardware_fee", 0)) > 0,
+                        "labor_hours": None,
+                    }
+
+        # Ultimate fallback: empty data (no cache available)
+        return {
+            "nags_part_number": None,
+            "calibration_type": "none",
+            "features": [],
+            "photo_urls": [],
+            "moulding_required": to_float(data.get("moulding_fee", 0)) > 0,
+            "hardware_required": to_float(data.get("hardware_fee", 0)) > 0,
+            "labor_hours": None,
+        }
 
     def get__permissions(self, obj):
         return {

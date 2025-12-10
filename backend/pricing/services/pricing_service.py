@@ -14,7 +14,7 @@ from pricing.models import PricingProfile
 
 # Price bounds for auto-send validation
 REPLACEMENT_PRICE_MIN = Decimal("500.00")
-REPLACEMENT_PRICE_MAX = Decimal("1200.00")
+REPLACEMENT_PRICE_MAX = Decimal("1500.00")
 
 if TYPE_CHECKING:
     from shops.models import Shop

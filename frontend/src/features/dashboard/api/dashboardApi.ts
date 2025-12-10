@@ -10,6 +10,14 @@ import type {
   QuoteFilters,
   QuoteNote,
   PaginatedResponse,
+  ConversationStats,
+  ConversationsListResponse,
+  MessagesResponse,
+  Message,
+  QuoteConversationsResponse,
+  TemplatesResponse,
+  ConversationStatus,
+  Channel,
 } from '../types';
 
 const SUPPORT_BASE = '/api/v1/support';
@@ -63,10 +71,9 @@ export async function validateQuote(
   quoteId: string,
   notes?: string
 ): Promise<{ success: boolean; message: string }> {
-  const response = await apiClient.post(
-    `${SUPPORT_BASE}/quotes/${quoteId}/validate/`,
-    { notes }
-  );
+  const response = await apiClient.post(`${SUPPORT_BASE}/quotes/${quoteId}/validate/`, {
+    notes,
+  });
   return response.data;
 }
 
@@ -77,10 +84,9 @@ export async function rejectQuote(
   quoteId: string,
   reason: string
 ): Promise<{ success: boolean; message: string }> {
-  const response = await apiClient.post(
-    `${SUPPORT_BASE}/quotes/${quoteId}/reject/`,
-    { reason }
-  );
+  const response = await apiClient.post(`${SUPPORT_BASE}/quotes/${quoteId}/reject/`, {
+    reason,
+  });
   return response.data;
 }
 
@@ -109,13 +115,149 @@ export async function modifyQuote(
 /**
  * Add a note to a quote
  */
-export async function addNote(
-  quoteId: string,
-  content: string
-): Promise<QuoteNote> {
+export async function addNote(quoteId: string, content: string): Promise<QuoteNote> {
   const response = await apiClient.post<QuoteNote>(
     `${SUPPORT_BASE}/quotes/${quoteId}/notes/`,
     { content }
+  );
+  return response.data;
+}
+
+// ============================================
+// Conversation / Messaging API (Chatwoot)
+// ============================================
+
+const DASHBOARD_BASE = '/api/v1/dashboard';
+
+/**
+ * Get conversation statistics
+ */
+export async function getConversationStats(): Promise<ConversationStats> {
+  const response = await apiClient.get<ConversationStats>(
+    `${DASHBOARD_BASE}/conversations/stats/`
+  );
+  return response.data;
+}
+
+/**
+ * Get all conversations with optional status filter
+ */
+export async function getConversations(
+  status: ConversationStatus | 'all' = 'all',
+  page: number = 1
+): Promise<ConversationsListResponse> {
+  const params = new URLSearchParams();
+  params.append('status', status);
+  params.append('page', String(page));
+
+  const response = await apiClient.get<ConversationsListResponse>(
+    `${DASHBOARD_BASE}/conversations/`,
+    { params }
+  );
+  return response.data;
+}
+
+/**
+ * Get messages for a specific conversation
+ */
+export async function getConversationMessages(
+  conversationId: number,
+  before?: number
+): Promise<MessagesResponse> {
+  const params = before ? { before: String(before) } : undefined;
+
+  const response = await apiClient.get<MessagesResponse>(
+    `${DASHBOARD_BASE}/conversations/${conversationId}/messages/`,
+    { params }
+  );
+  return response.data;
+}
+
+/**
+ * Send a message in a conversation
+ */
+export async function sendMessage(
+  conversationId: number,
+  content: string,
+  isPrivate: boolean = false
+): Promise<Message> {
+  const response = await apiClient.post<Message>(
+    `${DASHBOARD_BASE}/conversations/${conversationId}/send/`,
+    { content, private: isPrivate }
+  );
+  return response.data;
+}
+
+/**
+ * Get conversations for a specific quote
+ */
+export async function getQuoteConversations(
+  quoteId: string
+): Promise<QuoteConversationsResponse> {
+  const response = await apiClient.get<QuoteConversationsResponse>(
+    `${DASHBOARD_BASE}/quotes/${quoteId}/conversations/`
+  );
+  return response.data;
+}
+
+/**
+ * Get all messages for a quote (omnichannel view)
+ *
+ * Fetches messages from all conversations (SMS, email, webchat)
+ * merged into a single chronological timeline.
+ */
+export async function getQuoteMessages(quoteId: string): Promise<MessagesResponse> {
+  const response = await apiClient.get<MessagesResponse>(
+    `${DASHBOARD_BASE}/quotes/${quoteId}/messages/`
+  );
+  return response.data;
+}
+
+/**
+ * Send a message related to a quote
+ *
+ * @param quoteId - The quote ID
+ * @param content - Message text
+ * @param includeQuoteLink - Whether to append quote link
+ * @param channel - Optional channel to send via ('chat', 'email', 'sms').
+ *                  If not specified, replies to most recent open conversation.
+ *                  If specified, routes to that channel's inbox.
+ */
+export async function sendQuoteMessage(
+  quoteId: string,
+  content: string,
+  includeQuoteLink: boolean = false,
+  channel?: Channel
+): Promise<Message> {
+  const response = await apiClient.post<Message>(
+    `${DASHBOARD_BASE}/quotes/${quoteId}/conversations/`,
+    {
+      content,
+      include_quote_link: includeQuoteLink,
+      ...(channel && { channel }),
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Get canned responses / message templates
+ */
+export async function getTemplates(): Promise<TemplatesResponse> {
+  const response = await apiClient.get<TemplatesResponse>(
+    `${DASHBOARD_BASE}/templates/`
+  );
+  return response.data;
+}
+
+/**
+ * Force sync a customer to Chatwoot
+ */
+export async function syncCustomerToChatwoot(
+  customerId: number
+): Promise<{ status: string; chatwoot_contact: Record<string, unknown> }> {
+  const response = await apiClient.post(
+    `${DASHBOARD_BASE}/customers/${customerId}/sync-chatwoot/`
   );
   return response.data;
 }

@@ -22,13 +22,18 @@ import {
   useValidateQuote,
   useRejectQuote,
   useAddNote,
+  useQuoteConversations,
 } from '../hooks/useDashboard';
 import { PartInfoCard } from '../components/PartInfoCard';
+import { MessagesTab } from '../components/MessagesTab';
 import type { FilterType, QuoteListItem, QuoteFilters } from '../types';
+
+type DetailTab = 'info' | 'messages';
 
 export default function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<DetailTab>('info');
   const [searchQuery, setSearchQuery] = useState('');
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -91,7 +96,12 @@ export default function DashboardPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useQuotes(getFilters());
-  const { data: selectedQuote, isLoading: quoteLoading } = useQuoteDetail(selectedQuoteId);
+  const { data: selectedQuote, isLoading: quoteLoading } =
+    useQuoteDetail(selectedQuoteId);
+  const { data: conversationsData } = useQuoteConversations(selectedQuoteId);
+
+  // Get unread message count for badge
+  const unreadCount = conversationsData?.lead_score?.new_message_count ?? 0;
 
   // Flatten quotes from paginated response
   const quotes = useMemo(() => quotesData?.quotes ?? [], [quotesData]);
@@ -265,7 +275,9 @@ export default function DashboardPage() {
                 {user?.first_name || user?.email || 'Staff'}
               </span>
               <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                {user?.first_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'S'}
+                {user?.first_name?.[0]?.toUpperCase() ||
+                  user?.email?.[0]?.toUpperCase() ||
+                  'S'}
               </div>
               <Button
                 variant="outline"
@@ -454,7 +466,10 @@ export default function DashboardPage() {
                   {quotes.map((quote) => (
                     <button
                       key={quote.id}
-                      onClick={() => setSelectedQuoteId(quote.id)}
+                      onClick={() => {
+                        setSelectedQuoteId(quote.id);
+                        setActiveTab('info'); // Reset to info tab on new selection
+                      }}
                       className={`w-full px-6 py-4 text-left hover:bg-gray-50 transition-colors ${
                         selectedQuoteId === quote.id ? 'bg-gray-50' : ''
                       }`}
@@ -539,7 +554,10 @@ export default function DashboardPage() {
           </div>
 
           {/* Quote Detail Panel */}
-          <div ref={detailPanelRef} className="flex-1 min-h-0 bg-gray-50 overflow-y-auto">
+          <div
+            ref={detailPanelRef}
+            className="flex-1 min-h-0 bg-gray-50 overflow-y-auto"
+          >
             {selectedQuoteId && quoteLoading ? (
               <div className="max-w-4xl mx-auto p-8 space-y-6">
                 <Skeleton className="h-48 w-full" />
@@ -547,369 +565,431 @@ export default function DashboardPage() {
                 <Skeleton className="h-32 w-full" />
               </div>
             ) : selectedQuote ? (
-              <div className="max-w-4xl mx-auto p-8">
-                {/* Customer & Vehicle Info */}
-                <Card className="p-6 mb-6">
-                  <div className="flex items-start justify-between mb-6">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                        {selectedQuote.customer.full_name}
-                      </h2>
-                      <p className="text-sm text-gray-500">
-                        Quote #{selectedQuote.id.slice(0, 8)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge
-                        variant="secondary"
-                        className={
-                          selectedQuote.state === 'pending_validation'
-                            ? 'bg-gray-100 text-gray-700'
-                            : selectedQuote.engagement.view_count > 0
-                              ? 'bg-green-50 text-green-700'
-                              : 'bg-blue-50 text-blue-700'
-                        }
+              <div className="h-full flex flex-col">
+                {/* Tab Switcher */}
+                <div className="bg-white border-b border-gray-200 px-8 pt-6">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="flex gap-6">
+                      <button
+                        onClick={() => setActiveTab('info')}
+                        className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === 'info'
+                            ? 'border-red-600 text-red-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
                       >
-                        {selectedQuote.state === 'pending_validation'
-                          ? 'Needs Review'
-                          : selectedQuote.engagement.view_count > 0
-                            ? 'Viewed'
-                            : 'Sent'}
-                      </Badge>
-                      {selectedQuote.engagement.is_hot && (
-                        <Badge className="bg-primary text-white">Hot Lead</Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                        Contact Information
-                      </h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <svg
-                            className="w-4 h-4 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                            />
-                          </svg>
-                          <a
-                            href={`tel:${selectedQuote.customer.phone}`}
-                            className="text-primary hover:underline"
-                          >
-                            {selectedQuote.customer.phone}
-                          </a>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <svg
-                            className="w-4 h-4 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                            />
-                          </svg>
-                          <a
-                            href={`mailto:${selectedQuote.customer.email}`}
-                            className="text-primary hover:underline"
-                          >
-                            {selectedQuote.customer.email}
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                        Vehicle Information
-                      </h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <svg
-                            className="w-4 h-4 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                            />
-                          </svg>
-                          <span className="text-gray-900">
-                            {selectedQuote.vehicle.year} {selectedQuote.vehicle.make}{' '}
-                            {selectedQuote.vehicle.model}
+                        Quote Info
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('messages')}
+                        className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                          activeTab === 'messages'
+                            ? 'border-red-600 text-red-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Messages
+                        {unreadCount > 0 && (
+                          <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">
+                            {unreadCount}
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <svg
-                            className="w-4 h-4 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                            />
-                          </svg>
-                          <span className="text-gray-600">
-                            {selectedQuote.glass.display_name}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Engagement Section */}
-                {selectedQuote.state !== 'pending_validation' && (
-                  <Card className="p-6 mb-6">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                      Customer Engagement
-                    </h3>
-
-                    {selectedQuote.engagement.view_count > 0 ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                              <svg
-                                className="w-4 h-4 text-white"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M5 13l4 4L19 7"
-                                />
-                              </svg>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                Customer is engaged
-                              </p>
-                              <p className="text-xs text-gray-600">
-                                Viewed {selectedQuote.engagement.view_count}x
-                                {selectedQuote.engagement.last_viewed_at &&
-                                  `, last viewed ${getTimeAgo(selectedQuote.engagement.last_viewed_at)}`}
-                              </p>
-                            </div>
-                          </div>
-                          {selectedQuote.engagement.is_hot && (
-                            <Badge className="bg-primary text-white">Hot Lead</Badge>
-                          )}
-                        </div>
-
-                        {/* Timeline */}
-                        <div className="space-y-2 pt-2">
-                          {selectedQuote.state_history
-                            .slice()
-                            .reverse()
-                            .map((log, index) => (
-                              <div key={index} className="flex items-start gap-3 text-sm">
-                                <div
-                                  className={`w-2 h-2 rounded-full mt-1.5 ${
-                                    log.to_state === 'sent' ? 'bg-blue-500' : 'bg-green-500'
-                                  }`}
-                                />
-                                <div className="flex-1">
-                                  <p className="text-gray-900 font-medium">
-                                    {log.to_state === 'sent'
-                                      ? 'Quote sent to customer'
-                                      : log.to_state === 'pending_validation'
-                                        ? 'Quote created'
-                                        : `Status: ${log.to_state}`}
-                                  </p>
-                                  <p className="text-gray-500 text-xs">
-                                    {new Date(log.timestamp).toLocaleString()}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          {selectedQuote.engagement.views.map((view, index) => (
-                            <div key={`view-${index}`} className="flex items-start gap-3 text-sm">
-                              <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5" />
-                              <div className="flex-1">
-                                <p className="text-gray-900 font-medium">
-                                  Customer viewed quote ({view.device_type})
-                                </p>
-                                <p className="text-gray-500 text-xs">
-                                  {new Date(view.viewed_at).toLocaleString()}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg">
-                        <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
-                          <svg
-                            className="w-4 h-4 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Quote sent but not opened
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            Sent {getTimeAgo(selectedQuote.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </Card>
-                )}
-
-                {/* Quote Details */}
-                <Card className="p-6 mb-6">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                    Quote Details
-                  </h3>
-
-                  <div className="space-y-3">
-                    {selectedQuote.pricing.line_items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {item.description}
-                          </p>
-                          <p className="text-xs text-gray-500 capitalize">{item.type}</p>
-                        </div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          ${parseFloat(item.subtotal).toFixed(2)}
-                        </p>
-                      </div>
-                    ))}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                      <p className="text-base font-semibold text-gray-900">Total</p>
-                      <p className="text-lg font-bold text-gray-900">
-                        ${parseFloat(selectedQuote.pricing.total).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Part Information */}
-                {selectedQuote.part_info && (
-                  <div className="mb-6">
-                    <PartInfoCard partInfo={selectedQuote.part_info} />
-                  </div>
-                )}
-
-                {/* CSR Notes */}
-                {(selectedQuote.notes?.length > 0 || selectedQuote.csr_notes) && (
-                  <Card className="p-6 mb-6">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                      CSR Notes
-                    </h3>
-                    <div className="space-y-3">
-                      {/* New structured notes */}
-                      {selectedQuote.notes?.map((note) => (
-                        <div
-                          key={note.id}
-                          className="bg-gray-50 p-3 rounded border border-gray-200"
-                        >
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                            {note.content}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {note.created_by_name} &middot;{' '}
-                            {new Date(note.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                      ))}
-                      {/* Legacy csr_notes field (if exists and no structured notes) */}
-                      {selectedQuote.csr_notes && (!selectedQuote.notes || selectedQuote.notes.length === 0) && (
-                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap">
-                          {selectedQuote.csr_notes}
-                        </p>
-                      )}
-                    </div>
-                  </Card>
-                )}
-
-                {/* Action Buttons */}
-                <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 -mx-8 mt-8">
-                  <div className="max-w-4xl mx-auto flex items-center justify-between">
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        className="border-gray-300 bg-transparent opacity-50 cursor-not-allowed"
-                        disabled
-                        title="Edit functionality coming soon"
-                      >
-                        Edit Quote
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="border-gray-300 bg-transparent"
-                        onClick={() => setAddNoteDialogOpen(true)}
-                      >
-                        Add Note
-                      </Button>
-                    </div>
-                    <div className="flex gap-3">
-                      {selectedQuote._permissions.can_reject && (
-                        <Button
-                          variant="outline"
-                          className="border-red-300 text-red-600 hover:bg-red-50"
-                          onClick={() => setRejectDialogOpen(true)}
-                        >
-                          Reject
-                        </Button>
-                      )}
-                      {selectedQuote._permissions.can_validate ? (
-                        <Button
-                          className="bg-primary hover:bg-primary/90 text-white"
-                          onClick={handleSendQuote}
-                          disabled={validateMutation.isPending}
-                        >
-                          {validateMutation.isPending ? 'Sending...' : 'Send Quote'}
-                        </Button>
-                      ) : (
-                        <Button className="bg-primary hover:bg-primary/90 text-white">
-                          Resend Quote
-                        </Button>
-                      )}
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
+
+                {/* Tab Content */}
+                {activeTab === 'info' ? (
+                  <div className="flex-1 overflow-y-auto p-8">
+                    <div className="max-w-4xl mx-auto">
+                      {/* Customer & Vehicle Info */}
+                      <Card className="p-6 mb-6">
+                        <div className="flex items-start justify-between mb-6">
+                          <div>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                              {selectedQuote.customer.full_name}
+                            </h2>
+                            <p className="text-sm text-gray-500">
+                              Quote #{selectedQuote.id.slice(0, 8)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge
+                              variant="secondary"
+                              className={
+                                selectedQuote.state === 'pending_validation'
+                                  ? 'bg-gray-100 text-gray-700'
+                                  : selectedQuote.engagement.view_count > 0
+                                    ? 'bg-green-50 text-green-700'
+                                    : 'bg-blue-50 text-blue-700'
+                              }
+                            >
+                              {selectedQuote.state === 'pending_validation'
+                                ? 'Needs Review'
+                                : selectedQuote.engagement.view_count > 0
+                                  ? 'Viewed'
+                                  : 'Sent'}
+                            </Badge>
+                            {selectedQuote.engagement.is_hot && (
+                              <Badge className="bg-primary text-white">Hot Lead</Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                              Contact Information
+                            </h3>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                                  />
+                                </svg>
+                                <a
+                                  href={`tel:${selectedQuote.customer.phone}`}
+                                  className="text-primary hover:underline"
+                                >
+                                  {selectedQuote.customer.phone}
+                                </a>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                  />
+                                </svg>
+                                <a
+                                  href={`mailto:${selectedQuote.customer.email}`}
+                                  className="text-primary hover:underline"
+                                >
+                                  {selectedQuote.customer.email}
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                              Vehicle Information
+                            </h3>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                                  />
+                                </svg>
+                                <span className="text-gray-900">
+                                  {selectedQuote.vehicle.year}{' '}
+                                  {selectedQuote.vehicle.make}{' '}
+                                  {selectedQuote.vehicle.model}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <svg
+                                  className="w-4 h-4 text-gray-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                  />
+                                </svg>
+                                <span className="text-gray-600">
+                                  {selectedQuote.glass.display_name}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+
+                      {/* Engagement Section */}
+                      {selectedQuote.state !== 'pending_validation' && (
+                        <Card className="p-6 mb-6">
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                            Customer Engagement
+                          </h3>
+
+                          {selectedQuote.engagement.view_count > 0 ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                    <svg
+                                      className="w-4 h-4 text-white"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M5 13l4 4L19 7"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      Customer is engaged
+                                    </p>
+                                    <p className="text-xs text-gray-600">
+                                      Viewed {selectedQuote.engagement.view_count}x
+                                      {selectedQuote.engagement.last_viewed_at &&
+                                        `, last viewed ${getTimeAgo(selectedQuote.engagement.last_viewed_at)}`}
+                                    </p>
+                                  </div>
+                                </div>
+                                {selectedQuote.engagement.is_hot && (
+                                  <Badge className="bg-primary text-white">
+                                    Hot Lead
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Timeline */}
+                              <div className="space-y-2 pt-2">
+                                {selectedQuote.state_history
+                                  .slice()
+                                  .reverse()
+                                  .map((log, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex items-start gap-3 text-sm"
+                                    >
+                                      <div
+                                        className={`w-2 h-2 rounded-full mt-1.5 ${
+                                          log.to_state === 'sent'
+                                            ? 'bg-blue-500'
+                                            : 'bg-green-500'
+                                        }`}
+                                      />
+                                      <div className="flex-1">
+                                        <p className="text-gray-900 font-medium">
+                                          {log.to_state === 'sent'
+                                            ? 'Quote sent to customer'
+                                            : log.to_state === 'pending_validation'
+                                              ? 'Quote created'
+                                              : `Status: ${log.to_state}`}
+                                        </p>
+                                        <p className="text-gray-500 text-xs">
+                                          {new Date(log.timestamp).toLocaleString()}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                {selectedQuote.engagement.views.map((view, index) => (
+                                  <div
+                                    key={`view-${index}`}
+                                    className="flex items-start gap-3 text-sm"
+                                  >
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mt-1.5" />
+                                    <div className="flex-1">
+                                      <p className="text-gray-900 font-medium">
+                                        Customer viewed quote ({view.device_type})
+                                      </p>
+                                      <p className="text-gray-500 text-xs">
+                                        {new Date(view.viewed_at).toLocaleString()}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg">
+                              <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center">
+                                <svg
+                                  className="w-4 h-4 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  Quote sent but not opened
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  Sent {getTimeAgo(selectedQuote.created_at)}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </Card>
+                      )}
+
+                      {/* Quote Details */}
+                      <Card className="p-6 mb-6">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                          Quote Details
+                        </h3>
+
+                        <div className="space-y-3">
+                          {selectedQuote.pricing.line_items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {item.description}
+                                </p>
+                                <p className="text-xs text-gray-500 capitalize">
+                                  {item.type}
+                                </p>
+                              </div>
+                              <p className="text-sm font-semibold text-gray-900">
+                                ${parseFloat(item.subtotal).toFixed(2)}
+                              </p>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                            <p className="text-base font-semibold text-gray-900">
+                              Total
+                            </p>
+                            <p className="text-lg font-bold text-gray-900">
+                              ${parseFloat(selectedQuote.pricing.total).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+
+                      {/* Part Information */}
+                      {selectedQuote.part_info && (
+                        <div className="mb-6">
+                          <PartInfoCard partInfo={selectedQuote.part_info} />
+                        </div>
+                      )}
+
+                      {/* CSR Notes */}
+                      {(selectedQuote.notes?.length > 0 || selectedQuote.csr_notes) && (
+                        <Card className="p-6 mb-6">
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                            CSR Notes
+                          </h3>
+                          <div className="space-y-3">
+                            {/* New structured notes */}
+                            {selectedQuote.notes?.map((note) => (
+                              <div
+                                key={note.id}
+                                className="bg-gray-50 p-3 rounded border border-gray-200"
+                              >
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                                  {note.content}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-2">
+                                  {note.created_by_name} &middot;{' '}
+                                  {new Date(note.created_at).toLocaleString()}
+                                </p>
+                              </div>
+                            ))}
+                            {/* Legacy csr_notes field (if exists and no structured notes) */}
+                            {selectedQuote.csr_notes &&
+                              (!selectedQuote.notes ||
+                                selectedQuote.notes.length === 0) && (
+                                <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap">
+                                  {selectedQuote.csr_notes}
+                                </p>
+                              )}
+                          </div>
+                        </Card>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="sticky bottom-0 bg-white border-t border-gray-200 p-6 -mx-8 mt-8">
+                        <div className="max-w-4xl mx-auto flex items-center justify-between">
+                          <div className="flex gap-3">
+                            <Button
+                              variant="outline"
+                              className="border-gray-300 bg-transparent opacity-50 cursor-not-allowed"
+                              disabled
+                              title="Edit functionality coming soon"
+                            >
+                              Edit Quote
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="border-gray-300 bg-transparent"
+                              onClick={() => setAddNoteDialogOpen(true)}
+                            >
+                              Add Note
+                            </Button>
+                          </div>
+                          <div className="flex gap-3">
+                            {selectedQuote._permissions.can_reject && (
+                              <Button
+                                variant="outline"
+                                className="border-red-300 text-red-600 hover:bg-red-50"
+                                onClick={() => setRejectDialogOpen(true)}
+                              >
+                                Reject
+                              </Button>
+                            )}
+                            {selectedQuote._permissions.can_validate ? (
+                              <Button
+                                className="bg-primary hover:bg-primary/90 text-white"
+                                onClick={handleSendQuote}
+                                disabled={validateMutation.isPending}
+                              >
+                                {validateMutation.isPending
+                                  ? 'Sending...'
+                                  : 'Send Quote'}
+                              </Button>
+                            ) : (
+                              <Button className="bg-primary hover:bg-primary/90 text-white">
+                                Resend Quote
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Messages Tab */
+                  <MessagesTab quote={selectedQuote} />
+                )}
               </div>
             ) : (
               <div className="h-full flex items-center justify-center text-center p-8">
@@ -927,9 +1007,12 @@ export default function DashboardPage() {
                       d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <p className="text-gray-500 text-lg mb-2">Select a quote to view details</p>
+                  <p className="text-gray-500 text-lg mb-2">
+                    Select a quote to view details
+                  </p>
                   <p className="text-gray-400 text-sm">
-                    Choose a quote from the list to see customer and engagement information
+                    Choose a quote from the list to see customer and engagement
+                    information
                   </p>
                 </div>
               </div>
@@ -944,7 +1027,8 @@ export default function DashboardPage() {
           <DialogHeader>
             <DialogTitle>Reject Quote</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting this quote. The customer will be notified.
+              Please provide a reason for rejecting this quote. The customer will be
+              notified.
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -974,7 +1058,8 @@ export default function DashboardPage() {
           <DialogHeader>
             <DialogTitle>Add CSR Note</DialogTitle>
             <DialogDescription>
-              Add an internal note to this quote. Notes are only visible to staff members.
+              Add an internal note to this quote. Notes are only visible to staff
+              members.
             </DialogDescription>
           </DialogHeader>
           <Textarea
